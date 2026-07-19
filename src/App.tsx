@@ -11,11 +11,40 @@ export default function App() {
   const [lastNumber, setLastNumber] = useState(100);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+  const [useLocalFallback, setUseLocalFallback] = useState(false);
 
-  // Fetch current queue state from server
+  // Helper to load state from browser local storage
+  const loadFromLocalStorage = () => {
+    try {
+      const storedQueue = localStorage.getItem('wro_queue');
+      const storedLastNumber = localStorage.getItem('wro_last_number');
+      const parsedQueue = storedQueue ? JSON.parse(storedQueue) : [];
+      const parsedLastNumber = storedLastNumber ? parseInt(storedLastNumber, 10) : 100;
+      setQueue(parsedQueue);
+      setLastNumber(parsedLastNumber);
+      setIsConnected(true);
+      setConnectionError(false);
+    } catch (e) {
+      console.error('Failed to load from localStorage:', e);
+    }
+  };
+
+  // Fetch current queue state from server or fallback to local storage
   const fetchState = async () => {
+    if (useLocalFallback) {
+      loadFromLocalStorage();
+      return;
+    }
+
     try {
       const res = await fetch('/api/queue');
+      if (res.status === 404) {
+        console.warn('Backend API returned 404 (static environment). Switching to Browser LocalStorage Fallback.');
+        setUseLocalFallback(true);
+        loadFromLocalStorage();
+        return;
+      }
+
       if (res.ok) {
         const data = await res.json();
         setQueue(data.queue || []);
@@ -28,6 +57,15 @@ export default function App() {
     } catch (err) {
       console.error('Failed to fetch queue state:', err);
       setConnectionError(true);
+      // Still load local storage as a safety grace measure so the UI remains active
+      const storedQueue = localStorage.getItem('wro_queue');
+      const storedLastNumber = localStorage.getItem('wro_last_number');
+      if (storedQueue) {
+        try {
+          setQueue(JSON.parse(storedQueue));
+          setLastNumber(storedLastNumber ? parseInt(storedLastNumber, 10) : 100);
+        } catch (e) {}
+      }
     }
   };
 
@@ -37,6 +75,12 @@ export default function App() {
 
     // Always run backup polling every 3 seconds to ensure 100% reliability across any proxy, network, or iframe constraints
     const pollInterval = setInterval(fetchState, 3000);
+
+    if (useLocalFallback) {
+      return () => {
+        clearInterval(pollInterval);
+      };
+    }
 
     let eventSource: EventSource | null = null;
 
@@ -79,16 +123,42 @@ export default function App() {
       }
       clearInterval(pollInterval);
     };
-  }, []);
+  }, [useLocalFallback]);
 
   // API Call: Register a new practitioner (iPad)
   const handleRegister = async (name: string, remarks?: string): Promise<QueueItem | null> => {
+    if (useLocalFallback) {
+      const newNum = lastNumber + 1;
+      const newItem: QueueItem = {
+        id: Math.random().toString(36).substring(2, 11),
+        number: newNum,
+        name,
+        remarks: remarks || '',
+        status: 'waiting',
+        registeredAt: Date.now(),
+      };
+
+      const updatedQueue = [...queue, newItem];
+      setQueue(updatedQueue);
+      setLastNumber(newNum);
+
+      localStorage.setItem('wro_queue', JSON.stringify(updatedQueue));
+      localStorage.setItem('wro_last_number', newNum.toString());
+      return newItem;
+    }
+
     try {
       const res = await fetch('/api/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, remarks }),
       });
+
+      if (res.status === 404) {
+        setUseLocalFallback(true);
+        // Fallback on recursive call
+        return handleRegister(name, remarks);
+      }
 
       if (res.ok) {
         const newItem = await res.json();
@@ -97,7 +167,10 @@ export default function App() {
           if (prev.some((item) => item.id === newItem.id)) {
             return prev;
           }
-          return [...prev, newItem];
+          const next = [...prev, newItem];
+          localStorage.setItem('wro_queue', JSON.stringify(next));
+          localStorage.setItem('wro_last_number', newItem.number.toString());
+          return next;
         });
         return newItem;
       } else {
@@ -106,13 +179,46 @@ export default function App() {
         return null;
       }
     } catch (err) {
-      console.error('Network error during registration:', err);
-      return null;
+      console.error('Network error during registration, falling back to local storage:', err);
+      // Register locally
+      const newNum = lastNumber + 1;
+      const newItem: QueueItem = {
+        id: Math.random().toString(36).substring(2, 11),
+        number: newNum,
+        name,
+        remarks: remarks || '',
+        status: 'waiting',
+        registeredAt: Date.now(),
+      };
+      const updatedQueue = [...queue, newItem];
+      setQueue(updatedQueue);
+      setLastNumber(newNum);
+      localStorage.setItem('wro_queue', JSON.stringify(updatedQueue));
+      localStorage.setItem('wro_last_number', newNum.toString());
+      return newItem;
     }
   };
 
   // API Call: Update queue status (PC)
   const handleUpdateStatus = async (id: string, status: 'waiting' | 'called' | 'completed' | 'skipped') => {
+    if (useLocalFallback) {
+      const updatedQueue = queue.map((item) => {
+        if (item.id === id) {
+          const updated: QueueItem = { ...item, status };
+          if (status === 'called') {
+            updated.calledAt = Date.now();
+          } else if (status === 'completed') {
+            updated.completedAt = Date.now();
+          }
+          return updated;
+        }
+        return item;
+      });
+      setQueue(updatedQueue);
+      localStorage.setItem('wro_queue', JSON.stringify(updatedQueue));
+      return;
+    }
+
     try {
       const res = await fetch(`/api/queue/${id}`, {
         method: 'PATCH',
@@ -120,33 +226,94 @@ export default function App() {
         body: JSON.stringify({ status }),
       });
 
+      if (res.status === 404) {
+        setUseLocalFallback(true);
+        // Process locally
+        const updatedQueue = queue.map((item) => {
+          if (item.id === id) {
+            const updated: QueueItem = { ...item, status };
+            if (status === 'called') {
+              updated.calledAt = Date.now();
+            } else if (status === 'completed') {
+              updated.completedAt = Date.now();
+            }
+            return updated;
+          }
+          return item;
+        });
+        setQueue(updatedQueue);
+        localStorage.setItem('wro_queue', JSON.stringify(updatedQueue));
+        return;
+      }
+
       if (res.ok) {
         const updatedItem = await res.json();
         // Optimistically update locally
-        setQueue((prev) => prev.map((item) => (item.id === id ? updatedItem : item)));
+        setQueue((prev) => {
+          const next = prev.map((item) => (item.id === id ? updatedItem : item));
+          localStorage.setItem('wro_queue', JSON.stringify(next));
+          return next;
+        });
       } else {
         console.error('Failed to update status on server');
       }
     } catch (err) {
-      console.error('Network error during status update:', err);
+      console.error('Network error during status update, updating locally:', err);
+      const updatedQueue = queue.map((item) => {
+        if (item.id === id) {
+          const updated: QueueItem = { ...item, status };
+          if (status === 'called') {
+            updated.calledAt = Date.now();
+          } else if (status === 'completed') {
+            updated.completedAt = Date.now();
+          }
+          return updated;
+        }
+        return item;
+      });
+      setQueue(updatedQueue);
+      localStorage.setItem('wro_queue', JSON.stringify(updatedQueue));
     }
   };
 
   // API Call: Reset queue (PC)
   const handleReset = async () => {
+    if (useLocalFallback) {
+      setQueue([]);
+      setLastNumber(100);
+      localStorage.setItem('wro_queue', JSON.stringify([]));
+      localStorage.setItem('wro_last_number', '100');
+      return;
+    }
+
     try {
       const res = await fetch('/api/queue/reset', {
         method: 'POST',
       });
 
+      if (res.status === 404) {
+        setUseLocalFallback(true);
+        setQueue([]);
+        setLastNumber(100);
+        localStorage.setItem('wro_queue', JSON.stringify([]));
+        localStorage.setItem('wro_last_number', '100');
+        return;
+      }
+
       if (res.ok) {
         setQueue([]);
         setLastNumber(100);
+        localStorage.setItem('wro_queue', JSON.stringify([]));
+        localStorage.setItem('wro_last_number', '100');
       } else {
         console.error('Failed to reset queue on server');
       }
     } catch (err) {
-      console.error('Network error during queue reset:', err);
+      console.error('Network error during queue reset, resetting locally:', err);
+      setQueue([]);
+      setLastNumber(100);
+      localStorage.setItem('wro_queue', JSON.stringify([]));
+      localStorage.setItem('wro_last_number', '100');
     }
   };
 
@@ -184,7 +351,12 @@ export default function App() {
 
               {/* Server Connection Status */}
               <div className="flex items-center justify-center gap-2">
-                {connectionError ? (
+                {useLocalFallback ? (
+                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-full text-xs font-semibold uppercase tracking-wider">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                    로컬 브라우저 저장 모드 (Netlify Active)
+                  </span>
+                ) : connectionError ? (
                   <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-full text-xs font-black">
                     <ServerCrash className="w-4 h-4 animate-pulse" />
                     서버 오프라인 (재시도 중...)
@@ -192,7 +364,7 @@ export default function App() {
                 ) : isConnected ? (
                   <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full text-xs font-semibold uppercase tracking-wider">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    System Active
+                    System Active (연동 중)
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 border border-slate-700 text-slate-400 rounded-full text-xs font-bold">
