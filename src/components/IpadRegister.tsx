@@ -272,9 +272,17 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
               </div>
             ) : (
               <div className="space-y-2.5 max-h-[300px] lg:max-h-[500px] overflow-y-auto pr-1">
-                {queue
-                  .filter((item) => item.status === 'waiting')
-                  .map((item) => (
+                {(() => {
+                  const waitingItems = queue.filter((item) => item.status === 'waiting');
+                  const seenIds = new Set<string>();
+                  const uniqueWaiting: QueueItem[] = [];
+                  for (const item of waitingItems) {
+                    if (item && item.id && !seenIds.has(item.id)) {
+                      seenIds.add(item.id);
+                      uniqueWaiting.push(item);
+                    }
+                  }
+                  return uniqueWaiting.map((item) => (
                     <div
                       key={item.id}
                       className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between shadow-sm"
@@ -299,7 +307,8 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
                         })}
                       </span>
                     </div>
-                  ))}
+                  ));
+                })()}
               </div>
             )}
           </div>

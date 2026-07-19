@@ -435,7 +435,17 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
                   return (b.completedAt || b.calledAt || 0) - (a.completedAt || a.calledAt || 0);
                 });
 
-                return sortedItems.map((item) => {
+                // Defensively filter out duplicate item.ids
+                const uniqueSortedItems: QueueItem[] = [];
+                const seenIds = new Set<string>();
+                for (const item of sortedItems) {
+                  if (item && item.id && !seenIds.has(item.id)) {
+                    seenIds.add(item.id);
+                    uniqueSortedItems.push(item);
+                  }
+                }
+
+                return uniqueSortedItems.map((item) => {
                   // Style colors based on item status
                   let statusBg = 'bg-white border-slate-200 text-slate-800';
                   let badge = <span className="px-2 py-0.5 rounded text-[10px] font-black bg-slate-100 text-slate-500">대기</span>;

@@ -92,8 +92,13 @@ export default function App() {
 
       if (res.ok) {
         const newItem = await res.json();
-        // Optimistically append locally for rapid iPad print feedback
-        setQueue((prev) => [...prev, newItem]);
+        // Optimistically append locally for rapid iPad print feedback, avoiding duplicates
+        setQueue((prev) => {
+          if (prev.some((item) => item.id === newItem.id)) {
+            return prev;
+          }
+          return [...prev, newItem];
+        });
         return newItem;
       } else {
         const errData = await res.json();
