@@ -31,14 +31,16 @@ export default function App() {
     }
   };
 
-  // Real-time updates subscription using Server-Sent Events (SSE) + fallback polling
+  // Real-time updates subscription using Server-Sent Events (SSE) + robust active polling
   useEffect(() => {
     fetchState(); // Initial fetch
 
-    let eventSource: EventSource | null = null;
-    let pollInterval: NodeJS.Timeout | null = null;
+    // Always run backup polling every 3 seconds to ensure 100% reliability across any proxy, network, or iframe constraints
+    const pollInterval = setInterval(fetchState, 3000);
 
-    // Try to connect to Server-Sent Events stream for real-time push updates
+    let eventSource: EventSource | null = null;
+
+    // Try to connect to Server-Sent Events stream for instant push updates where supported
     try {
       eventSource = new EventSource('/api/queue/stream');
 
@@ -60,22 +62,14 @@ export default function App() {
       };
 
       eventSource.onerror = (err) => {
-        console.warn('SSE stream encountered an error. Falling back to active poll.', err);
-        setIsConnected(false);
+        console.warn('SSE stream encountered an error. Relying on active polling.', err);
         if (eventSource) {
           eventSource.close();
           eventSource = null;
         }
-
-        // Enable backup active polling every 3 seconds if SSE fails
-        if (!pollInterval) {
-          pollInterval = setInterval(fetchState, 3000);
-        }
       };
     } catch (sseErr) {
-      console.error('SSE initialization failed. Falling back to active polling:', sseErr);
-      setIsConnected(false);
-      pollInterval = setInterval(fetchState, 3000);
+      console.error('SSE initialization failed. Relying on active polling:', sseErr);
     }
 
     // Cleanup on unmount
@@ -83,9 +77,7 @@ export default function App() {
       if (eventSource) {
         eventSource.close();
       }
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
+      clearInterval(pollInterval);
     };
   }, []);
 

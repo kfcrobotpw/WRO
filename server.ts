@@ -54,8 +54,9 @@ async function startServer() {
   // 2. Real-time updates via Server-Sent Events (SSE)
   app.get('/api/queue/stream', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable buffering on Nginx reverse proxies
     res.setHeader('Access-Control-Allow-Origin', '*');
 
     // Send immediate initial state
