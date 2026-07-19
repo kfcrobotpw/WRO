@@ -1,0 +1,6 @@
+{
+  "name": "WRO 연습 경기장 번호표 시스템",
+  "description": "WRO 연습 경기장을 위한 실시간 스마트 번호표 시스템. iPad에서 빠르게 번호를 등록하고 PC에서 실시간 호출 및 음성 안내를 수행합니다.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
