@@ -1,0 +1,53 @@
+{
+  "entities": {
+    "queueItem": {
+      "title": "QueueItem",
+      "description": "Represents a single registered person in the queue",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the queue item"
+        },
+        "number": {
+          "type": "integer",
+          "description": "The queue display number (e.g., 101, 102)"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "The name of the registered person"
+        },
+        "registeredAt": {
+          "type": "integer",
+          "description": "Timestamp of registration"
+        },
+        "calledAt": {
+          "type": "integer",
+          "description": "Timestamp when called (optional)"
+        },
+        "completedAt": {
+          "type": "integer",
+          "description": "Timestamp when completed (optional)"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["waiting", "called", "completed", "skipped"],
+          "description": "The current status in the queue"
+        },
+        "remarks": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Any additional notes or remarks"
+        }
+      },
+      "required": ["id", "number", "name", "registeredAt", "status"]
+    }
+  },
+  "firestore": {
+    "queue/{id}": {
+      "schema": "queueItem",
+      "description": "Collection of all queue entries"
+    }
+  }
+}

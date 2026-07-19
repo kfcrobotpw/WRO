@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Rules for the queue collection
+    match /queue/{id} {
+      allow read, list: if true;
+
+      allow create: if isValidId(id)
+        && isValidQueueItem(incoming())
+        && incoming().keys().hasAll(['id', 'number', 'name', 'registeredAt', 'status'])
+        && (incoming().keys().size() == 5 || (incoming().keys().size() == 6 && 'remarks' in incoming()));
+
+      allow update: if isValidId(id)
+        && isValidQueueItem(incoming())
+        && incoming().id == existing().id
+        && incoming().number == existing().number
+        && incoming().name == existing().name
+        && incoming().registeredAt == existing().registeredAt
+        && (!('remarks' in existing()) || incoming().remarks == existing().remarks)
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'calledAt', 'completedAt'])
+        );
+
+      allow delete: if isValidId(id);
+    }
+  }
+}
+
+// Global and collection-specific validation helpers
+function isValidId(id) {
+  return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+}
+
+function incoming() {
+  return request.resource.data;
+}
+
+function existing() {
+  return resource.data;
+}
+
+function isValidQueueItem(data) {
+  return data.id is string && data.id.size() <= 128
+    && data.number is int && data.number >= 100
+    && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+    && data.registeredAt is int
+    && data.status is string && (data.status == 'waiting' || data.status == 'called' || data.status == 'completed' || data.status == 'skipped')
+    && (!('remarks' in data) || (data.remarks is string && data.remarks.size() <= 500))
+    && (!('calledAt' in data) || (data.calledAt is int))
+    && (!('completedAt' in data) || (data.completedAt is int));
+}

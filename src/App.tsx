@@ -4,316 +4,59 @@ import { Tablet, Tv, Cpu, ShieldAlert, ArrowRight, RefreshCw, ServerCrash } from
 import { QueueItem, ViewMode } from './types';
 import IpadRegister from './components/IpadRegister';
 import PcDashboard from './components/PcDashboard';
+import { subscribeToQueue, addQueueItem, updateQueueItemStatus, resetQueue } from './lib/firebase';
 
 export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('select');
   const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [lastNumber, setLastNumber] = useState(100);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
-  const [useLocalFallback, setUseLocalFallback] = useState(false);
 
-  // Helper to load state from browser local storage
-  const loadFromLocalStorage = () => {
-    try {
-      const storedQueue = localStorage.getItem('wro_queue');
-      const storedLastNumber = localStorage.getItem('wro_last_number');
-      const parsedQueue = storedQueue ? JSON.parse(storedQueue) : [];
-      const parsedLastNumber = storedLastNumber ? parseInt(storedLastNumber, 10) : 100;
-      setQueue(parsedQueue);
-      setLastNumber(parsedLastNumber);
+  // Real-time updates subscription using Firestore onSnapshot
+  useEffect(() => {
+    const unsubscribe = subscribeToQueue((updatedQueue) => {
+      setQueue(updatedQueue);
       setIsConnected(true);
       setConnectionError(false);
-    } catch (e) {
-      console.error('Failed to load from localStorage:', e);
-    }
-  };
+    });
 
-  // Fetch current queue state from server or fallback to local storage
-  const fetchState = async () => {
-    if (useLocalFallback) {
-      loadFromLocalStorage();
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/queue');
-      if (res.status === 404) {
-        console.warn('Backend API returned 404 (static environment). Switching to Browser LocalStorage Fallback.');
-        setUseLocalFallback(true);
-        loadFromLocalStorage();
-        return;
-      }
-
-      if (res.ok) {
-        const data = await res.json();
-        setQueue(data.queue || []);
-        setLastNumber(data.lastNumber || 100);
-        setIsConnected(true);
-        setConnectionError(false);
-      } else {
-        throw new Error('API return non-ok status');
-      }
-    } catch (err) {
-      console.error('Failed to fetch queue state:', err);
-      setConnectionError(true);
-      // Still load local storage as a safety grace measure so the UI remains active
-      const storedQueue = localStorage.getItem('wro_queue');
-      const storedLastNumber = localStorage.getItem('wro_last_number');
-      if (storedQueue) {
-        try {
-          setQueue(JSON.parse(storedQueue));
-          setLastNumber(storedLastNumber ? parseInt(storedLastNumber, 10) : 100);
-        } catch (e) {}
-      }
-    }
-  };
-
-  // Real-time updates subscription using Server-Sent Events (SSE) + robust active polling
-  useEffect(() => {
-    fetchState(); // Initial fetch
-
-    // Always run backup polling every 3 seconds to ensure 100% reliability across any proxy, network, or iframe constraints
-    const pollInterval = setInterval(fetchState, 3000);
-
-    if (useLocalFallback) {
-      return () => {
-        clearInterval(pollInterval);
-      };
-    }
-
-    let eventSource: EventSource | null = null;
-
-    // Try to connect to Server-Sent Events stream for instant push updates where supported
-    try {
-      eventSource = new EventSource('/api/queue/stream');
-
-      eventSource.onopen = () => {
-        setIsConnected(true);
-        setConnectionError(false);
-        console.log('SSE real-time stream connected.');
-      };
-
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          setQueue(data.queue || []);
-          setLastNumber(data.lastNumber || 100);
-          setIsConnected(true);
-        } catch (parseErr) {
-          console.error('Error parsing SSE payload:', parseErr);
-        }
-      };
-
-      eventSource.onerror = (err) => {
-        console.warn('SSE stream encountered an error. Relying on active polling.', err);
-        if (eventSource) {
-          eventSource.close();
-          eventSource = null;
-        }
-      };
-    } catch (sseErr) {
-      console.error('SSE initialization failed. Relying on active polling:', sseErr);
-    }
-
-    // Cleanup on unmount
     return () => {
-      if (eventSource) {
-        eventSource.close();
-      }
-      clearInterval(pollInterval);
+      unsubscribe();
     };
-  }, [useLocalFallback]);
+  }, []);
 
-  // API Call: Register a new practitioner (iPad)
+  // Compute the last queue number dynamically from current queue state
+  const lastNumber = queue.reduce((max, item) => (item.number > max ? item.number : max), 100);
+
+  // Register a new practitioner (iPad) via Firestore
   const handleRegister = async (name: string, remarks?: string): Promise<QueueItem | null> => {
-    if (useLocalFallback) {
-      const newNum = lastNumber + 1;
-      const newItem: QueueItem = {
-        id: Math.random().toString(36).substring(2, 11),
-        number: newNum,
-        name,
-        remarks: remarks || '',
-        status: 'waiting',
-        registeredAt: Date.now(),
-      };
-
-      const updatedQueue = [...queue, newItem];
-      setQueue(updatedQueue);
-      setLastNumber(newNum);
-
-      localStorage.setItem('wro_queue', JSON.stringify(updatedQueue));
-      localStorage.setItem('wro_last_number', newNum.toString());
-      return newItem;
-    }
-
     try {
-      const res = await fetch('/api/queue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, remarks }),
-      });
-
-      if (res.status === 404) {
-        setUseLocalFallback(true);
-        // Fallback on recursive call
-        return handleRegister(name, remarks);
-      }
-
-      if (res.ok) {
-        const newItem = await res.json();
-        // Optimistically append locally for rapid iPad print feedback, avoiding duplicates
-        setQueue((prev) => {
-          if (prev.some((item) => item.id === newItem.id)) {
-            return prev;
-          }
-          const next = [...prev, newItem];
-          localStorage.setItem('wro_queue', JSON.stringify(next));
-          localStorage.setItem('wro_last_number', newItem.number.toString());
-          return next;
-        });
-        return newItem;
-      } else {
-        const errData = await res.json();
-        console.error('Registration failed on server:', errData.error);
-        return null;
-      }
-    } catch (err) {
-      console.error('Network error during registration, falling back to local storage:', err);
-      // Register locally
-      const newNum = lastNumber + 1;
-      const newItem: QueueItem = {
-        id: Math.random().toString(36).substring(2, 11),
-        number: newNum,
-        name,
-        remarks: remarks || '',
-        status: 'waiting',
-        registeredAt: Date.now(),
-      };
-      const updatedQueue = [...queue, newItem];
-      setQueue(updatedQueue);
-      setLastNumber(newNum);
-      localStorage.setItem('wro_queue', JSON.stringify(updatedQueue));
-      localStorage.setItem('wro_last_number', newNum.toString());
+      const newItem = await addQueueItem(name, remarks);
       return newItem;
+    } catch (err) {
+      console.error('Registration failed:', err);
+      setConnectionError(true);
+      return null;
     }
   };
 
-  // API Call: Update queue status (PC)
+  // Update ticket status (PC) via Firestore
   const handleUpdateStatus = async (id: string, status: 'waiting' | 'called' | 'completed' | 'skipped') => {
-    if (useLocalFallback) {
-      const updatedQueue = queue.map((item) => {
-        if (item.id === id) {
-          const updated: QueueItem = { ...item, status };
-          if (status === 'called') {
-            updated.calledAt = Date.now();
-          } else if (status === 'completed') {
-            updated.completedAt = Date.now();
-          }
-          return updated;
-        }
-        return item;
-      });
-      setQueue(updatedQueue);
-      localStorage.setItem('wro_queue', JSON.stringify(updatedQueue));
-      return;
-    }
-
     try {
-      const res = await fetch(`/api/queue/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-
-      if (res.status === 404) {
-        setUseLocalFallback(true);
-        // Process locally
-        const updatedQueue = queue.map((item) => {
-          if (item.id === id) {
-            const updated: QueueItem = { ...item, status };
-            if (status === 'called') {
-              updated.calledAt = Date.now();
-            } else if (status === 'completed') {
-              updated.completedAt = Date.now();
-            }
-            return updated;
-          }
-          return item;
-        });
-        setQueue(updatedQueue);
-        localStorage.setItem('wro_queue', JSON.stringify(updatedQueue));
-        return;
-      }
-
-      if (res.ok) {
-        const updatedItem = await res.json();
-        // Optimistically update locally
-        setQueue((prev) => {
-          const next = prev.map((item) => (item.id === id ? updatedItem : item));
-          localStorage.setItem('wro_queue', JSON.stringify(next));
-          return next;
-        });
-      } else {
-        console.error('Failed to update status on server');
-      }
+      await updateQueueItemStatus(id, status);
     } catch (err) {
-      console.error('Network error during status update, updating locally:', err);
-      const updatedQueue = queue.map((item) => {
-        if (item.id === id) {
-          const updated: QueueItem = { ...item, status };
-          if (status === 'called') {
-            updated.calledAt = Date.now();
-          } else if (status === 'completed') {
-            updated.completedAt = Date.now();
-          }
-          return updated;
-        }
-        return item;
-      });
-      setQueue(updatedQueue);
-      localStorage.setItem('wro_queue', JSON.stringify(updatedQueue));
+      console.error('Status update failed:', err);
+      setConnectionError(true);
     }
   };
 
-  // API Call: Reset queue (PC)
+  // Reset queue (PC Action) via Firestore
   const handleReset = async () => {
-    if (useLocalFallback) {
-      setQueue([]);
-      setLastNumber(100);
-      localStorage.setItem('wro_queue', JSON.stringify([]));
-      localStorage.setItem('wro_last_number', '100');
-      return;
-    }
-
     try {
-      const res = await fetch('/api/queue/reset', {
-        method: 'POST',
-      });
-
-      if (res.status === 404) {
-        setUseLocalFallback(true);
-        setQueue([]);
-        setLastNumber(100);
-        localStorage.setItem('wro_queue', JSON.stringify([]));
-        localStorage.setItem('wro_last_number', '100');
-        return;
-      }
-
-      if (res.ok) {
-        setQueue([]);
-        setLastNumber(100);
-        localStorage.setItem('wro_queue', JSON.stringify([]));
-        localStorage.setItem('wro_last_number', '100');
-      } else {
-        console.error('Failed to reset queue on server');
-      }
+      await resetQueue();
     } catch (err) {
-      console.error('Network error during queue reset, resetting locally:', err);
-      setQueue([]);
-      setLastNumber(100);
-      localStorage.setItem('wro_queue', JSON.stringify([]));
-      localStorage.setItem('wro_last_number', '100');
+      console.error('Queue reset failed:', err);
+      setConnectionError(true);
     }
   };
 
@@ -349,27 +92,22 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Server Connection Status */}
+              {/* Cloud Connection Status */}
               <div className="flex items-center justify-center gap-2">
-                {useLocalFallback ? (
-                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-full text-xs font-semibold uppercase tracking-wider">
-                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                    로컬 브라우저 저장 모드 (Netlify Active)
-                  </span>
-                ) : connectionError ? (
+                {connectionError ? (
                   <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-full text-xs font-black">
                     <ServerCrash className="w-4 h-4 animate-pulse" />
-                    서버 오프라인 (재시도 중...)
+                    클라우드 오프라인 (재시도 중...)
                   </span>
                 ) : isConnected ? (
                   <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full text-xs font-semibold uppercase tracking-wider">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    System Active (연동 중)
+                    실시간 클라우드 DB 연동 중
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 border border-slate-700 text-slate-400 rounded-full text-xs font-bold">
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    서버 상태 조회 중...
+                    클라우드 DB 연결 중...
                   </span>
                 )}
               </div>
