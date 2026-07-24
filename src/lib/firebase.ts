@@ -10,7 +10,8 @@ import {
   updateDoc,
   getDocs,
   writeBatch,
-  limit
+  limit,
+  deleteDoc
 } from 'firebase/firestore';
 import { QueueItem } from '../types';
 
@@ -152,11 +153,13 @@ export async function addQueueItem(name: string, remarks?: string): Promise<Queu
 export async function updateQueueItemStatus(id: string, status: 'waiting' | 'called' | 'completed' | 'skipped') {
   try {
     const itemRef = doc(db, 'queue', id);
+    if (status === 'completed') {
+      await deleteDoc(itemRef);
+      return;
+    }
     const updates: Partial<QueueItem> = { status };
     if (status === 'called') {
       updates.calledAt = Date.now();
-    } else if (status === 'completed') {
-      updates.completedAt = Date.now();
     }
     await updateDoc(itemRef, updates);
   } catch (err) {

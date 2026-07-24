@@ -67,6 +67,89 @@ function playDingDongChime() {
   }
 }
 
+// Dynamically play Synthesized Attention Bell (Extremely loud, long, and high-impact majestic chime)
+function playAttentionBell() {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+
+    const now = ctx.currentTime;
+
+    // --- STAGE 1: The Rising High-Impact Alarm Hook (0.0s to 0.4s) ---
+    // A brilliant, energetic pitch sweep that instantly slices through loud background noise
+    const sweepOsc = ctx.createOscillator();
+    const sweepGain = ctx.createGain();
+    sweepOsc.type = 'triangle';
+    sweepOsc.frequency.setValueAtTime(350, now);
+    sweepOsc.frequency.exponentialRampToValueAtTime(1500, now + 0.35);
+
+    sweepGain.gain.setValueAtTime(0.01, now);
+    sweepGain.gain.linearRampToValueAtTime(0.4, now + 0.15);
+    sweepGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+    sweepOsc.connect(sweepGain);
+    sweepGain.connect(ctx.destination);
+
+    sweepOsc.start(now);
+    sweepOsc.stop(now + 0.45);
+
+
+    // --- STAGE 2: The Epic Majestic Gong & Brass Chord (Impact starts at 0.3s) ---
+    // Low, powerful bass frequencies (Gong foundation) + thick, detuned brass major chords that decay beautifully
+    const impactTime = now + 0.28;
+
+    // Frequencies of a grand, beautiful F-Major 9th chord structure for majestic impact
+    // [Low Gong Root, Low Fifth, Chord Third, Chord Fifth, Chord Octave, Bright High Ninth]
+    const chordFrequencies = [110.00, 164.81, 261.63, 349.23, 440.00, 523.25, 698.46, 1174.66];
+
+    chordFrequencies.forEach((freq, chordIdx) => {
+      // Stagger notes slightly (15ms delay per voice) to create a ultra-wide, grand orchestral entrance
+      const noteStartTime = impactTime + (chordIdx * 0.015);
+      
+      // We use two detuned oscillators per note to create a massive, rich, analog-synth chorus effect
+      const oscA = ctx.createOscillator();
+      const oscB = ctx.createOscillator();
+      const voiceGain = ctx.createGain();
+
+      // Lower registers get warm triangles, higher registers get rich saws/triangles
+      if (freq < 200) {
+        oscA.type = 'sine';
+        oscB.type = 'triangle';
+      } else {
+        oscA.type = 'triangle';
+        oscB.type = 'sawtooth';
+      }
+
+      // Detune the oscillators slightly to create natural richness and massive acoustic volume (chorus effect)
+      oscA.frequency.setValueAtTime(freq - 3, noteStartTime);
+      oscB.frequency.setValueAtTime(freq + 3, noteStartTime);
+
+      // Distribute volume: lower tones get solid grounding, high tones shine brightly
+      const baseVolume = freq < 200 ? 0.35 : 0.22;
+      
+      voiceGain.gain.setValueAtTime(0.001, noteStartTime);
+      // Fast attack to high peak volume
+      voiceGain.gain.linearRampToValueAtTime(baseVolume, noteStartTime + 0.08);
+      // Extremely long, beautiful, majestic decay of 2.5 seconds
+      voiceGain.gain.exponentialRampToValueAtTime(0.001, noteStartTime + 2.5);
+
+      oscA.connect(voiceGain);
+      oscB.connect(voiceGain);
+      voiceGain.connect(ctx.destination);
+
+      oscA.start(noteStartTime);
+      oscB.start(noteStartTime);
+
+      oscA.stop(noteStartTime + 2.6);
+      oscB.stop(noteStartTime + 2.6);
+    });
+
+  } catch (err) {
+    console.error('Attention bell synthesizer failed to play:', err);
+  }
+}
+
 // Text-to-Speech (TTS) Voice Call Function
 function speakKorean(text: string) {
   if (!window.speechSynthesis) return;
@@ -115,7 +198,7 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
       // Delay TTS slightly to let the chime play first
       if (isVoiceEnabled) {
         setTimeout(() => {
-          speakKorean(`띵동! ${currentCalled.number}번, ${currentCalled.name} 팀! 연습 경기장으로 입장해 주세요.`);
+          speakKorean(`띵동! ${currentCalled.name} 팀, ${currentCalled.name} 팀! 연습 경기장으로 입장해 주세요.`);
         }, 400);
       }
     } else if (!currentCalled) {
@@ -134,7 +217,7 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
       if (isSoundEnabled) playDingDongChime();
       if (isVoiceEnabled) {
         setTimeout(() => {
-          speakKorean(`다시 호명합니다. ${currentCalled.number}번 ${currentCalled.name} 팀, 연습 경기장으로 신속히 입장해 주세요.`);
+          speakKorean(`다시 호명합니다. ${currentCalled.name} 팀, ${currentCalled.name} 팀, 연습 경기장으로 신속히 입장해 주세요.`);
         }, 400);
       }
     }
@@ -204,6 +287,15 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
             <Megaphone className="w-4 h-4" />
             음성 호출 {isVoiceEnabled ? 'ON' : 'OFF'}
           </button>
+          <div className="w-px h-5 bg-slate-700 mx-0.5" />
+          <button
+            onClick={playAttentionBell}
+            className="px-3 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-amber-500/10"
+            title="전체 대기열 주목 벨 울리기"
+          >
+            <Bell className="w-4 h-4 text-white animate-bounce" />
+            전체 주목 벨 🔔
+          </button>
         </div>
       </div>
 
@@ -237,17 +329,17 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
                   className="py-10 md:py-14 text-center flex flex-col items-center justify-center"
                 >
                   <motion.div
-                    animate={{ scale: [1, 1.03, 1] }}
-                    transition={{ repeat: Infinity, duration: 3.5 }}
-                    className="text-7xl md:text-9xl font-black text-blue-600 tracking-tighter font-mono"
+                    animate={{ scale: [1, 1.05, 1] }}
+                    transition={{ repeat: Infinity, duration: 2.5 }}
+                    className="p-6 bg-blue-50 border-4 border-blue-200 rounded-full text-blue-600 mb-6 shadow-sm"
                   >
-                    {currentCalled.number}
+                    <Megaphone className="w-16 h-16 md:w-24 md:h-24 animate-pulse" />
                   </motion.div>
-                  <h2 className="text-4xl md:text-5xl font-black text-slate-950 mt-4 tracking-tight">
+                  <h2 className="text-5xl md:text-7xl font-black text-slate-950 tracking-tight">
                     {currentCalled.name} 팀
                   </h2>
                   {currentCalled.remarks && (
-                    <span className="mt-4 px-4 py-2 bg-blue-50 border border-blue-100 text-blue-700 rounded-2xl text-sm md:text-base font-semibold flex items-center gap-2 shadow-sm">
+                    <span className="mt-6 px-4 py-2 bg-blue-50 border border-blue-100 text-blue-700 rounded-2xl text-sm md:text-base font-semibold flex items-center gap-2 shadow-sm">
                       <Sparkles className="w-4.5 h-4.5 text-blue-500 shrink-0" />
                       미션: {currentCalled.remarks}
                     </span>
@@ -278,7 +370,15 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
               </div>
 
               {currentCalled && (
-                <div className="flex gap-2 w-full sm:w-auto">
+                <div className="flex gap-2 w-full sm:flex-wrap md:flex-nowrap">
+                  <button
+                    onClick={playAttentionBell}
+                    className="flex-1 sm:flex-none px-3.5 py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-95 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 transition shadow-sm"
+                    title="전체를 주목시키는 경보음 울리기"
+                  >
+                    <Bell className="w-4 h-4 text-white animate-bounce" />
+                    주목 벨
+                  </button>
                   <button
                     onClick={handleRecall}
                     className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-xl text-xs font-bold text-slate-800 border border-slate-200 flex items-center justify-center gap-1.5 transition shadow-sm"
@@ -313,7 +413,6 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
                 <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">NEXT UP • 다음 연습 예정자</p>
                 {nextWaiting ? (
                   <div className="mt-2.5 flex items-baseline gap-2.5">
-                    <span className="text-2xl font-black text-blue-600 font-mono">No.{nextWaiting.number}</span>
                     <span className="text-lg font-bold text-slate-900">{nextWaiting.name}</span>
                   </div>
                 ) : (
@@ -378,7 +477,7 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
               }`}
             >
               <Megaphone className="w-4.5 h-4.5" />
-              {nextWaiting ? `다음 팀 호명하기 (No.${nextWaiting.number} ${nextWaiting.name})` : '대기 중인 팀이 없습니다'}
+              {nextWaiting ? `다음 팀 호명하기 (${nextWaiting.name})` : '대기 중인 팀이 없습니다'}
             </button>
           </div>
 
@@ -424,16 +523,8 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
                   );
                 }
 
-                // Sort waiting by time ascending, others by update time descending
-                const sortedItems = [...itemsToShow].sort((a, b) => {
-                  if (activeTab === 'waiting' || a.status === 'waiting') {
-                    return a.registeredAt - b.registeredAt;
-                  }
-                  if (a.status === 'called' && b.status === 'called') {
-                    return (b.calledAt || 0) - (a.calledAt || 0);
-                  }
-                  return (b.completedAt || b.calledAt || 0) - (a.completedAt || a.calledAt || 0);
-                });
+                // Sort strictly by registration order (earliest registered first)
+                const sortedItems = [...itemsToShow].sort((a, b) => a.registeredAt - b.registeredAt);
 
                 // Defensively filter out duplicate item.ids
                 const uniqueSortedItems: QueueItem[] = [];
@@ -472,9 +563,7 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-blue-600 font-extrabold text-sm">
-                            #{item.number}
-                          </span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                           <span className="font-extrabold text-sm text-slate-900 truncate">
                             {item.name}
                           </span>
@@ -571,9 +660,9 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
               <div className="p-3 bg-rose-50 border border-rose-100 text-rose-600 rounded-full inline-block mb-4">
                 <Trash2 className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold text-slate-950">연습 번호표 전체 초기화</h3>
+              <h3 className="text-xl font-bold text-slate-950">연습 대기열 전체 초기화</h3>
               <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                정말로 전체 대기열을 완전히 삭제하고, 대기 번호 카운터를 다시 101번부터 시작하도록 리셋하시겠습니까?<br />
+                정말로 전체 대기열을 완전히 삭제하고 리셋하시겠습니까?<br />
                 <strong className="text-rose-600 font-bold">이 작업은 취소할 수 없습니다.</strong>
               </p>
 

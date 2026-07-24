@@ -289,9 +289,7 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
                     >
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-blue-600 font-extrabold text-xs px-1.5 py-0.5 bg-blue-50 rounded-md">
-                            No.{item.number}
-                          </span>
+                          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                           <span className="font-bold text-slate-800 text-sm">{item.name}</span>
                         </div>
                         {item.remarks && (
@@ -315,7 +313,7 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
 
           <div className="mt-6 pt-4 border-t border-slate-200 text-xs text-slate-400 leading-relaxed">
             <p className="font-semibold text-slate-500 mb-1">🚨 대기 수칙</p>
-            <p>1. 자신의 호명 번호가 PC 스크린에 뜰 때까지 로봇 점검 및 프로그램을 세팅해 주세요.</p>
+            <p>1. 자신의 팀 이름이 PC 스크린에 뜰 때까지 로봇 점검 및 프로그램을 세팅해 주세요.</p>
             <p className="mt-1">2. 연습 호명 후 즉시 참석하지 않으면 다음 순번으로 전환될 수 있습니다.</p>
           </div>
         </div>
@@ -341,17 +339,14 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
                 </div>
                 <h3 className="text-2xl font-black text-slate-800">대기 등록 완료!</h3>
                 <p className="text-xs text-slate-400 uppercase tracking-widest font-black font-mono">
-                  WRO Practice Queue Ticket
+                  WRO Practice Queue Registered
                 </p>
               </div>
 
               {/* Realistic Voucher */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 my-2 text-center">
-                <span className="text-xs font-semibold text-slate-400">당신의 대기 번호</span>
-                <div className="text-5xl font-black text-blue-600 tracking-tighter my-2 font-mono">
-                  {issuedTicket.number}
-                </div>
-                <div className="text-lg font-bold text-slate-800 mt-2">
+                <span className="text-xs font-semibold text-slate-400">등록 완료</span>
+                <div className="text-3xl font-black text-blue-600 tracking-tight my-2">
                   {issuedTicket.name} 팀
                 </div>
                 {issuedTicket.remarks && (
