@@ -19,6 +19,7 @@ import {
   Settings,
   AlertTriangle,
   Siren,
+  PackageCheck,
 } from 'lucide-react';
 import { QueueItem } from '../types';
 
@@ -196,6 +197,45 @@ function playWarningAlarmSound() {
   }
 }
 
+// Dynamically play Synthesized Cleanup & Robot Retrieval Chime (Bright 4-tone station announcement chime)
+function playCleanupNoticeSound() {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const now = ctx.currentTime;
+
+    // Pleasant 4-note ascending/descending melody chime (C5, E5, G5, C6, G5)
+    const notes = [523.25, 659.25, 783.99, 1046.50, 783.99];
+    notes.forEach((freq, idx) => {
+      const startTime = now + idx * 0.18;
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = 'sine';
+      osc2.type = 'triangle';
+
+      osc1.frequency.setValueAtTime(freq, startTime);
+      osc2.frequency.setValueAtTime(freq * 1.5, startTime); // Harmonic overtone
+
+      gain.gain.setValueAtTime(0.35, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.6);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(startTime);
+      osc2.start(startTime);
+      osc1.stop(startTime + 0.65);
+      osc2.stop(startTime + 0.65);
+    });
+  } catch (err) {
+    console.error('Cleanup chime synthesizer failed:', err);
+  }
+}
+
 // Text-to-Speech (TTS) Voice Call Function
 function speakKorean(text: string) {
   if (!window.speechSynthesis) return;
@@ -292,6 +332,29 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
     }
   };
 
+  const handleCleanupNotice = () => {
+    if (isSoundEnabled) {
+      playCleanupNoticeSound();
+    }
+
+    if (isVoiceEnabled) {
+      setTimeout(() => {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+
+        const message = currentCalled
+          ? `안내 말씀 드립니다! 연습이 완료된 ${currentCalled.name} 팀은 경기장의 로봇을 차질 없이 회수해 가시고, 사용하신 경기장 기물과 미션 오브젝트를 원래 위치로 깔끔하게 정리정돈해 주시기 바랍니다!`
+          : `안내 말씀 드립니다! 연습을 마친 모든 참가자는 경기장의 로봇을 빠짐없이 회수해 가시고, 사용하신 경기장 기물과 미션 오브젝트를 원래 위치로 깨끗하게 정리정돈해 주시기 바랍니다!`;
+
+        const utterance = new SpeechSynthesisUtterance(message);
+        utterance.lang = 'ko-KR';
+        utterance.rate = 0.95;
+        utterance.pitch = 1.05;
+        window.speechSynthesis.speak(utterance);
+      }, 500);
+    }
+  };
+
   const handleCompleteCurrent = async () => {
     if (currentCalled) {
       await onUpdateStatus(currentCalled.id, 'completed');
@@ -372,6 +435,14 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
           >
             <Siren className="w-4 h-4 text-amber-300 animate-pulse" />
             신속 재촉 🚨
+          </button>
+          <button
+            onClick={handleCleanupNotice}
+            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/20"
+            title="연습 종료 후 로봇 회수 및 기물 정리 안내 방송"
+          >
+            <PackageCheck className="w-4 h-4 text-indigo-200" />
+            로봇/기물 정리 🧹
           </button>
         </div>
       </div>
@@ -455,6 +526,14 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
                   >
                     <Siren className="w-4 h-4 text-amber-300 animate-pulse" />
                     신속 재촉 🚨
+                  </button>
+                  <button
+                    onClick={handleCleanupNotice}
+                    className="flex-1 sm:flex-none px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 transition shadow-sm"
+                    title="로봇 회수 및 경기장 기물 정리정돈 안내"
+                  >
+                    <PackageCheck className="w-4 h-4 text-indigo-200" />
+                    로봇/기물 정리 🧹
                   </button>
                   <button
                     onClick={playAttentionBell}
