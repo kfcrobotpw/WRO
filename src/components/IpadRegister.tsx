@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Ticket, User, MessageSquare, CheckCircle2, Users, ArrowLeft, Plus, Crown } from 'lucide-react';
+import { Ticket, User, MessageSquare, CheckCircle2, Users, ArrowLeft, Plus, Crown, KeyRound, AlertCircle } from 'lucide-react';
 import { QueueItem, DEFAULT_PRACTITIONERS } from '../types';
 
 interface IpadRegisterProps {
@@ -21,10 +21,17 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
   const [customName, setCustomName] = useState<string>('');
   const [selectedRemark, setSelectedRemark] = useState<string>('');
   const [customRemark, setCustomRemark] = useState<string>('');
+  const [vipPassword, setVipPassword] = useState<string>('');
+  const [vipError, setVipError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [issuedTicket, setIssuedTicket] = useState<QueueItem | null>(null);
 
   const waitingCount = queue.filter((item) => item.status === 'waiting').length;
+
+  const isVipName = (name: string) => {
+    const trimmed = name.trim();
+    return trimmed === '박도현' || trimmed.includes('박도현');
+  };
 
   const getActiveName = () => {
     return selectedName === 'custom' ? customName : selectedName;
@@ -39,7 +46,15 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
     const finalName = getActiveName().trim();
     if (!finalName) return;
 
+    if (isVipName(finalName)) {
+      if (vipPassword.trim() !== '1213') {
+        setVipError('VIP 권한 인증 비밀번호가 올바르지 않습니다.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
+    setVipError(null);
     const remark = getActiveRemark().trim();
     
     const ticket = await onRegister(finalName, remark || undefined);
@@ -52,6 +67,8 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
       setCustomName('');
       setSelectedRemark('');
       setCustomRemark('');
+      setVipPassword('');
+      setVipError(null);
 
       // Auto-dismiss ticket after 4.5 seconds
       setTimeout(() => {
@@ -171,6 +188,56 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
                       onChange={(e) => setCustomName(e.target.value)}
                       className="w-full px-5 py-4 bg-slate-50 border-2 border-blue-500 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-100 font-bold text-lg text-slate-800 placeholder-slate-400"
                     />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Animate-In VIP Security Password verification field when Park Do-hyun is selected */}
+              <AnimatePresence>
+                {isVipName(getActiveName()) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2 }}
+                    className="pt-3"
+                  >
+                    <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-2xl space-y-2.5 shadow-sm">
+                      <div className="flex items-center justify-between text-amber-950 font-black text-sm">
+                        <div className="flex items-center gap-2">
+                          <Crown className="w-5 h-5 text-amber-600 fill-amber-500 animate-bounce" />
+                          <span>VIP 권한 보안 인증 (박도현 전용)</span>
+                        </div>
+                        <span className="px-2.5 py-0.5 bg-amber-200 text-amber-950 text-xs font-black rounded-lg">
+                          비밀번호 필요
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold text-amber-900">
+                        박도현 팀 최우선 VIP 등록을 진행하려면 인증 비밀번호를 입력하세요.
+                      </p>
+                      <div className="relative">
+                        <input
+                          type="password"
+                          maxLength={10}
+                          placeholder="VIP 비밀번호 입력"
+                          value={vipPassword}
+                          onChange={(e) => {
+                            setVipPassword(e.target.value);
+                            setVipError(null);
+                          }}
+                          className={`w-full px-4 py-3 bg-white border-2 ${
+                            vipError ? 'border-rose-500 focus:ring-rose-200' : 'border-amber-400 focus:ring-amber-200'
+                          } rounded-xl font-bold text-base text-slate-900 focus:outline-none focus:ring-4 placeholder-slate-400`}
+                        />
+                        <KeyRound className="w-5 h-5 text-amber-500 absolute right-3.5 top-3.5 pointer-events-none" />
+                      </div>
+                      {vipError && (
+                        <p className="text-xs font-black text-rose-600 flex items-center gap-1.5 mt-1 bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          {vipError}
+                        </p>
+                      )}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
