@@ -17,6 +17,8 @@ import {
   Megaphone,
   Sparkles,
   Settings,
+  AlertTriangle,
+  Siren,
 } from 'lucide-react';
 import { QueueItem } from '../types';
 
@@ -150,6 +152,50 @@ function playAttentionBell() {
   }
 }
 
+// Dynamically play Synthesized Warning Alarm Sound (Sharp, urgent dual-tone siren blast)
+function playWarningAlarmSound() {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const now = ctx.currentTime;
+
+    // 5 rapid high-intensity alarm bursts (sawtooth + square dual oscillator)
+    const bursts = [0, 0.18, 0.36, 0.54, 0.72];
+    bursts.forEach((timeOffset, idx) => {
+      const startTime = now + timeOffset;
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = 'sawtooth'; // Sharp piercing wave
+      osc2.type = 'square';   // Buzzing warning wave
+
+      // Alternating high siren frequencies (1244Hz / 880Hz)
+      const freq = idx % 2 === 0 ? 1244.51 : 880.00;
+      osc1.frequency.setValueAtTime(freq, startTime);
+      osc2.frequency.setValueAtTime(freq * 0.5, startTime);
+
+      // Rapid siren pitch ramp for urgent alarm effect
+      osc1.frequency.exponentialRampToValueAtTime(freq * 1.25, startTime + 0.14);
+
+      gain.gain.setValueAtTime(0.4, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.16);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(startTime);
+      osc2.start(startTime);
+      osc1.stop(startTime + 0.17);
+      osc2.stop(startTime + 0.17);
+    });
+  } catch (err) {
+    console.error('Warning alarm synthesizer failed:', err);
+  }
+}
+
 // Text-to-Speech (TTS) Voice Call Function
 function speakKorean(text: string) {
   if (!window.speechSynthesis) return;
@@ -220,6 +266,29 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
           speakKorean(`다시 호명합니다. ${currentCalled.name} 팀, ${currentCalled.name} 팀, 연습 경기장으로 신속히 입장해 주세요.`);
         }, 400);
       }
+    }
+  };
+
+  const handleUrgeSpeedyAction = () => {
+    if (isSoundEnabled) {
+      playWarningAlarmSound();
+    }
+
+    if (isVoiceEnabled) {
+      setTimeout(() => {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+
+        const message = currentCalled
+          ? `경고 및 긴급 안내합니다! 현재 호명된 ${currentCalled.name} 팀! 연습 시간 지연으로 뒤에서 대기 중인 다른 팀들의 일정이 크게 밀리고 있습니다. 지체하지 말고 즉시 경기장에 입장하여 신속하게 연습과 미션을 마치고 퇴장해 주시기 바랍니다! 지금 즉시 신속히 진행해 주세요!`
+          : `경고 및 긴급 안내합니다! 대기 중인 연습자가 많아 전체 일정 지연이 발생하고 있습니다! 현재 경기장에서 연습 중인 팀은 지체 없이 신속하게 마무리를 진행해 주시고, 호명된 다음 팀은 즉시 경기장으로 들어와 주시기 바랍니다!`;
+
+        const utterance = new SpeechSynthesisUtterance(message);
+        utterance.lang = 'ko-KR';
+        utterance.rate = 1.08; // Energetic, rapid pace
+        utterance.pitch = 1.15; // Higher urgent pitch
+        window.speechSynthesis.speak(utterance);
+      }, 500);
     }
   };
 
@@ -296,6 +365,14 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
             <Bell className="w-4 h-4 text-white animate-bounce" />
             전체 주목 벨 🔔
           </button>
+          <button
+            onClick={handleUrgeSpeedyAction}
+            className="px-3 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-rose-600/20"
+            title="신속 진행 강력 재촉 경고 방송"
+          >
+            <Siren className="w-4 h-4 text-amber-300 animate-pulse" />
+            신속 재촉 🚨
+          </button>
         </div>
       </div>
 
@@ -371,6 +448,14 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
 
               {currentCalled && (
                 <div className="flex gap-2 w-full sm:flex-wrap md:flex-nowrap">
+                  <button
+                    onClick={handleUrgeSpeedyAction}
+                    className="flex-1 sm:flex-none px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 transition shadow-sm"
+                    title="현재 팀 신속 진행 강력 경고 재촉"
+                  >
+                    <Siren className="w-4 h-4 text-amber-300 animate-pulse" />
+                    신속 재촉 🚨
+                  </button>
                   <button
                     onClick={playAttentionBell}
                     className="flex-1 sm:flex-none px-3.5 py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-95 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 transition shadow-sm"
