@@ -23,4 +23,6 @@ export const DEFAULT_PRACTITIONERS = [
   '박도현',
   '장원우',
   '김규민',
+  '김지온',
+  '송민규',
 ];
