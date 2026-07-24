@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Ticket, User, MessageSquare, CheckCircle2, Users, ArrowLeft, Plus } from 'lucide-react';
+import { Ticket, User, MessageSquare, CheckCircle2, Users, ArrowLeft, Plus, Crown } from 'lucide-react';
 import { QueueItem, DEFAULT_PRACTITIONERS } from '../types';
 
 interface IpadRegisterProps {
@@ -109,6 +109,7 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {DEFAULT_PRACTITIONERS.map((name) => {
                   const isSelected = selectedName === name;
+                  const isVip = name === '박도현';
                   return (
                     <button
                       key={name}
@@ -116,13 +117,20 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
                       onClick={() => {
                         setSelectedName(name);
                       }}
-                      className={`h-20 md:h-24 rounded-2xl border-2 text-base md:text-lg font-bold transition-all duration-200 flex flex-col items-center justify-center gap-2 active:scale-95 ${
+                      className={`h-20 md:h-24 rounded-2xl border-2 text-base md:text-lg font-bold transition-all duration-200 flex flex-col items-center justify-center gap-1.5 active:scale-95 relative overflow-hidden ${
                         isSelected
                           ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200'
+                          : isVip
+                          ? 'bg-amber-50/90 border-amber-300 hover:border-amber-400 text-slate-800 shadow-sm'
                           : 'bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700'
                       }`}
                     >
-                      <span className={`w-2.5 h-2.5 rounded-full ${isSelected ? 'bg-white' : 'bg-slate-300'}`} />
+                      {isVip && (
+                        <span className="absolute top-2 right-2 px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded text-[9px] font-black flex items-center gap-0.5 shadow-sm">
+                          <Crown className="w-2.5 h-2.5 fill-amber-950 text-amber-950" /> VIP 1순위
+                        </span>
+                      )}
+                      <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : isVip ? 'bg-amber-500' : 'bg-slate-300'}`} />
                       {name}
                     </button>
                   );
@@ -273,7 +281,16 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
             ) : (
               <div className="space-y-2.5 max-h-[300px] lg:max-h-[500px] overflow-y-auto pr-1">
                 {(() => {
-                  const waitingItems = queue.filter((item) => item.status === 'waiting');
+                  const isVip = (item: QueueItem) => item.name === '박도현' || item.name.includes('박도현');
+                  const waitingItems = queue
+                    .filter((item) => item.status === 'waiting')
+                    .sort((a, b) => {
+                      const aVip = isVip(a);
+                      const bVip = isVip(b);
+                      if (aVip && !bVip) return -1;
+                      if (!aVip && bVip) return 1;
+                      return a.registeredAt - b.registeredAt;
+                    });
                   const seenIds = new Set<string>();
                   const uniqueWaiting: QueueItem[] = [];
                   for (const item of waitingItems) {
@@ -291,6 +308,11 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                           <span className="font-bold text-slate-800 text-sm">{item.name}</span>
+                          {isVip(item) && (
+                            <span className="px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded text-[9px] font-black flex items-center gap-0.5 shadow-sm">
+                              <Crown className="w-2.5 h-2.5 fill-amber-950 text-amber-950" /> VIP 1순위
+                            </span>
+                          )}
                         </div>
                         {item.remarks && (
                           <p className="text-xs text-slate-400 mt-1 truncate max-w-[150px]">
@@ -346,9 +368,19 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
               {/* Realistic Voucher */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 my-2 text-center">
                 <span className="text-xs font-semibold text-slate-400">등록 완료</span>
-                <div className="text-3xl font-black text-blue-600 tracking-tight my-2">
+                <div className="text-3xl font-black text-blue-600 tracking-tight my-2 flex items-center justify-center gap-2">
                   {issuedTicket.name} 팀
+                  {(issuedTicket.name === '박도현' || issuedTicket.name.includes('박도현')) && (
+                    <span className="px-2.5 py-0.5 bg-amber-400 text-amber-950 rounded-full text-xs font-black flex items-center gap-1 shadow-sm">
+                      <Crown className="w-3.5 h-3.5 fill-amber-950 text-amber-950" /> VIP
+                    </span>
+                  )}
                 </div>
+                {(issuedTicket.name === '박도현' || issuedTicket.name.includes('박도현')) && (
+                  <p className="text-xs text-amber-900 bg-amber-100 border border-amber-300 px-3 py-1.5 rounded-xl font-black inline-flex items-center gap-1 my-1">
+                    👑 VIP 최우선 1순위 대기열로 즉시 배치되었습니다!
+                  </p>
+                )}
                 {issuedTicket.remarks && (
                   <p className="text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full inline-block mt-2 font-semibold">
                     📌 {issuedTicket.remarks}

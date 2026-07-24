@@ -20,8 +20,12 @@ import {
   AlertTriangle,
   Siren,
   PackageCheck,
+  Crown,
 } from 'lucide-react';
 import { QueueItem } from '../types';
+
+// Helper to identify VIP practitioners who get 1st priority call placement
+export const isVipItem = (item: QueueItem) => item.name === '박도현' || item.name.includes('박도현');
 
 interface PcDashboardProps {
   queue: QueueItem[];
@@ -258,8 +262,16 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
   // Keep track of the last called ID to trigger automatic voice calling only when a new item is called
   const lastCalledIdRef = useRef<string | null>(null);
 
-  // Separate lists
-  const waitingItems = queue.filter((item) => item.status === 'waiting');
+  // Separate lists (VIP '박도현' is always prioritized at the top of the waiting queue)
+  const waitingItems = queue
+    .filter((item) => item.status === 'waiting')
+    .sort((a, b) => {
+      const aVip = isVipItem(a);
+      const bVip = isVipItem(b);
+      if (aVip && !bVip) return -1;
+      if (!aVip && bVip) return 1;
+      return a.registeredAt - b.registeredAt;
+    });
   const calledItems = queue.filter((item) => item.status === 'called');
   const historyItems = queue.filter((item) => item.status === 'completed' || item.status === 'skipped');
 
@@ -483,8 +495,13 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
                   >
                     <Megaphone className="w-16 h-16 md:w-24 md:h-24 animate-pulse" />
                   </motion.div>
-                  <h2 className="text-5xl md:text-7xl font-black text-slate-950 tracking-tight">
+                  <h2 className="text-5xl md:text-7xl font-black text-slate-950 tracking-tight flex items-center justify-center gap-3">
                     {currentCalled.name} 팀
+                    {isVipItem(currentCalled) && (
+                      <span className="px-3.5 py-1.5 bg-amber-400 text-amber-950 rounded-2xl text-xs md:text-sm font-black flex items-center gap-1.5 shadow-md animate-bounce">
+                        <Crown className="w-4 h-4 fill-amber-950 text-amber-950" /> VIP
+                      </span>
+                    )}
                   </h2>
                   {currentCalled.remarks && (
                     <span className="mt-6 px-4 py-2 bg-blue-50 border border-blue-100 text-blue-700 rounded-2xl text-sm md:text-base font-semibold flex items-center gap-2 shadow-sm">
@@ -576,8 +593,13 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
               <div>
                 <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">NEXT UP • 다음 연습 예정자</p>
                 {nextWaiting ? (
-                  <div className="mt-2.5 flex items-baseline gap-2.5">
+                  <div className="mt-2.5 flex items-center gap-2.5">
                     <span className="text-lg font-bold text-slate-900">{nextWaiting.name}</span>
+                    {isVipItem(nextWaiting) && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-amber-950 flex items-center gap-1 shadow-sm animate-pulse">
+                        <Crown className="w-3.5 h-3.5 fill-amber-950 text-amber-950" /> VIP 1순위
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <p className="text-slate-500 text-sm font-bold mt-2">대기 중인 다음 팀 없음</p>
@@ -687,8 +709,18 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
                   );
                 }
 
-                // Sort strictly by registration order (earliest registered first)
-                const sortedItems = [...itemsToShow].sort((a, b) => a.registeredAt - b.registeredAt);
+                // Sort with VIP priority first for waiting items, then registration order
+                const sortedItems = [...itemsToShow].sort((a, b) => {
+                  if (a.status === 'waiting' && b.status === 'waiting') {
+                    const aVip = isVipItem(a);
+                    const bVip = isVipItem(b);
+                    if (aVip && !bVip) return -1;
+                    if (!aVip && bVip) return 1;
+                  }
+                  if (a.status === 'waiting' && b.status !== 'waiting') return -1;
+                  if (a.status !== 'waiting' && b.status === 'waiting') return 1;
+                  return a.registeredAt - b.registeredAt;
+                });
 
                 // Defensively filter out duplicate item.ids
                 const uniqueSortedItems: QueueItem[] = [];
@@ -731,6 +763,11 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
                           <span className="font-extrabold text-sm text-slate-900 truncate">
                             {item.name}
                           </span>
+                          {isVipItem(item) && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-400 text-amber-950 flex items-center gap-0.5 shadow-sm">
+                              <Crown className="w-3 h-3 fill-amber-950 text-amber-950" /> VIP 1순위
+                            </span>
+                          )}
                           {badge}
                         </div>
                         {item.remarks && (
