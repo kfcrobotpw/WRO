@@ -28,12 +28,28 @@ service cloud.firestore {
 
       allow delete: if isValidId(id);
     }
+
+    // Rules for the penalties collection
+    match /penalties/{id} {
+      allow read, list: if true;
+
+      allow create, update: if isValidPenaltyId(id)
+        && isValidPenalty(incoming())
+        && incoming().keys().hasAll(['name', 'count', 'updatedAt'])
+        && incoming().keys().size() == 3;
+
+      allow delete: if isValidPenaltyId(id);
+    }
   }
 }
 
 // Global and collection-specific validation helpers
 function isValidId(id) {
   return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+}
+
+function isValidPenaltyId(id) {
+  return id is string && id.size() <= 256;
 }
 
 function incoming() {
@@ -53,4 +69,10 @@ function isValidQueueItem(data) {
     && (!('remarks' in data) || (data.remarks is string && data.remarks.size() <= 500))
     && (!('calledAt' in data) || (data.calledAt is int))
     && (!('completedAt' in data) || (data.completedAt is int));
+}
+
+function isValidPenalty(data) {
+  return data.name is string && data.name.size() > 0 && data.name.size() <= 200
+    && data.count is int && data.count >= 0
+    && data.updatedAt is int;
 }

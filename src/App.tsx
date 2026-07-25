@@ -4,24 +4,38 @@ import { Tablet, Tv, Cpu, ShieldAlert, ArrowRight, RefreshCw, ServerCrash } from
 import { QueueItem, ViewMode } from './types';
 import IpadRegister from './components/IpadRegister';
 import PcDashboard from './components/PcDashboard';
-import { subscribeToQueue, addQueueItem, updateQueueItemStatus, resetQueue } from './lib/firebase';
+import {
+  subscribeToQueue,
+  addQueueItem,
+  updateQueueItemStatus,
+  resetQueue,
+  subscribeToPenalties,
+  updatePenaltyCount,
+  clearPenaltyCount
+} from './lib/firebase';
 
 export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('select');
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [penalties, setPenalties] = useState<Record<string, number>>({});
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
 
   // Real-time updates subscription using Firestore onSnapshot
   useEffect(() => {
-    const unsubscribe = subscribeToQueue((updatedQueue) => {
+    const unsubscribeQueue = subscribeToQueue((updatedQueue) => {
       setQueue(updatedQueue);
       setIsConnected(true);
       setConnectionError(false);
     });
 
+    const unsubscribePenalties = subscribeToPenalties((updatedPenalties) => {
+      setPenalties(updatedPenalties);
+    });
+
     return () => {
-      unsubscribe();
+      unsubscribeQueue();
+      unsubscribePenalties();
     };
   }, []);
 
@@ -57,6 +71,24 @@ export default function App() {
     } catch (err) {
       console.error('Queue reset failed:', err);
       setConnectionError(true);
+    }
+  };
+
+  // Update penalty count for a practitioner/team (+1 or -1)
+  const handleUpdatePenalty = async (name: string, delta: number) => {
+    try {
+      await updatePenaltyCount(name, delta);
+    } catch (err) {
+      console.error('Update penalty failed:', err);
+    }
+  };
+
+  // Clear all penalty count for a practitioner/team
+  const handleClearPenalty = async (name: string) => {
+    try {
+      await clearPenaltyCount(name);
+    } catch (err) {
+      console.error('Clear penalty failed:', err);
     }
   };
 
@@ -182,6 +214,7 @@ export default function App() {
           >
             <IpadRegister
               queue={queue}
+              penalties={penalties}
               onBack={() => setViewMode('select')}
               onRegister={handleRegister}
             />
@@ -198,10 +231,13 @@ export default function App() {
           >
             <PcDashboard
               queue={queue}
+              penalties={penalties}
               onBack={() => setViewMode('select')}
               onUpdateStatus={handleUpdateStatus}
               onRegister={handleRegister}
               onReset={handleReset}
+              onUpdatePenalty={handleUpdatePenalty}
+              onClearPenalty={handleClearPenalty}
             />
           </motion.div>
         )}

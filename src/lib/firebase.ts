@@ -6,6 +6,7 @@ import {
   query,
   orderBy,
   doc,
+  getDoc,
   setDoc,
   updateDoc,
   getDocs,
@@ -207,5 +208,70 @@ export async function seedQueue(names: string[]) {
     await batch.commit();
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, 'queue');
+  }
+}
+
+/**
+ * Subscribes to real-time updates of the penalties collection.
+ */
+export function subscribeToPenalties(callback: (penalties: Record<string, number>) => void) {
+  const penaltiesRef = collection(db, 'penalties');
+  return onSnapshot(penaltiesRef, (snapshot) => {
+    const penaltiesMap: Record<string, number> = {};
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data && data.name && typeof data.count === 'number') {
+        penaltiesMap[data.name] = data.count;
+      }
+    });
+    callback(penaltiesMap);
+  }, (error) => {
+    handleFirestoreError(error, OperationType.GET, 'penalties');
+  });
+}
+
+/**
+ * Updates penalty count for a practitioner/team name (+1 or -1).
+ */
+export async function updatePenaltyCount(name: string, delta: number) {
+  const trimmedName = name.trim();
+  if (!trimmedName) return;
+  const docId = encodeURIComponent(trimmedName);
+  const penaltyRef = doc(db, 'penalties', docId);
+
+  try {
+    const docSnap = await getDoc(penaltyRef);
+    let currentCount = 0;
+    if (docSnap.exists()) {
+      currentCount = docSnap.data().count || 0;
+    }
+    const newCount = Math.max(0, currentCount + delta);
+    if (newCount === 0) {
+      await deleteDoc(penaltyRef);
+    } else {
+      await setDoc(penaltyRef, {
+        name: trimmedName,
+        count: newCount,
+        updatedAt: Date.now(),
+      });
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `penalties/${docId}`);
+  }
+}
+
+/**
+ * Clears/Resets penalty count for a practitioner/team name to 0.
+ */
+export async function clearPenaltyCount(name: string) {
+  const trimmedName = name.trim();
+  if (!trimmedName) return;
+  const docId = encodeURIComponent(trimmedName);
+  const penaltyRef = doc(db, 'penalties', docId);
+
+  try {
+    await deleteDoc(penaltyRef);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `penalties/${docId}`);
   }
 }

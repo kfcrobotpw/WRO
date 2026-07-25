@@ -26,6 +26,7 @@ import {
   Search,
   Plus,
   ClipboardList,
+  ShieldAlert,
 } from 'lucide-react';
 import { QueueItem, DEFAULT_PRACTITIONERS } from '../types';
 
@@ -34,10 +35,13 @@ export const isVipItem = (item: QueueItem) => item.name === '박도현' || item.
 
 interface PcDashboardProps {
   queue: QueueItem[];
+  penalties?: Record<string, number>;
   onBack: () => void;
   onUpdateStatus: (id: string, status: 'waiting' | 'called' | 'completed' | 'skipped') => Promise<void>;
   onRegister?: (name: string, remarks?: string) => Promise<QueueItem | null>;
   onReset: () => Promise<void>;
+  onUpdatePenalty?: (name: string, delta: number) => Promise<void>;
+  onClearPenalty?: (name: string) => Promise<void>;
 }
 
 // Safely instantiate and resume AudioContext for web browsers
@@ -264,11 +268,22 @@ function speakKorean(text: string) {
   window.speechSynthesis.speak(utterance);
 }
 
-export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister, onReset }: PcDashboardProps) {
+export default function PcDashboard({
+  queue,
+  penalties = {},
+  onBack,
+  onUpdateStatus,
+  onRegister,
+  onReset,
+  onUpdatePenalty,
+  onClearPenalty,
+}: PcDashboardProps) {
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [isSoundEnabled, setIsSoundEnabled] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'waiting' | 'called' | 'history'>('all');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showPenaltyModal, setShowPenaltyModal] = useState(false);
+  const [penaltySearchInput, setPenaltySearchInput] = useState('');
   const [directCustomName, setDirectCustomName] = useState('');
   const [directCallToast, setDirectCallToast] = useState<string | null>(null);
   const [isDirectCalling, setIsDirectCalling] = useState(false);
@@ -276,10 +291,22 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
   // Keep track of the last called ID to trigger automatic voice calling only when a new item is called
   const lastCalledIdRef = useRef<string | null>(null);
 
-  // Separate lists (VIP '박도현' is always prioritized at the top of the waiting queue)
+  // Separate lists (VIP '박도현' is prioritized unless penalized >= 3; teams with >=3 penalties are pushed to the very bottom)
   const waitingItems = queue
     .filter((item) => item.status === 'waiting')
     .sort((a, b) => {
+      const aPen = penalties[a.name] || 0;
+      const bPen = penalties[b.name] || 0;
+      const aDemoted = aPen >= 3;
+      const bDemoted = bPen >= 3;
+
+      if (aDemoted && !bDemoted) return 1;
+      if (!aDemoted && bDemoted) return -1;
+      if (aDemoted && bDemoted) {
+        if (aPen !== bPen) return aPen - bPen;
+        return a.registeredAt - b.registeredAt;
+      }
+
       const aVip = isVipItem(a);
       const bVip = isVipItem(b);
       if (aVip && !bVip) return -1;
@@ -532,6 +559,20 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
             <ClipboardList className="w-4 h-4 text-sky-200" />
             대기 등록 안내 📝
           </button>
+          <div className="w-px h-5 bg-slate-700 mx-0.5" />
+          <button
+            onClick={() => setShowPenaltyModal(true)}
+            className="px-3 py-2 bg-rose-700 hover:bg-rose-800 active:scale-95 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-rose-900/30 cursor-pointer border border-rose-500/40"
+            title="팀별 패널티 부여 및 관리 모달 열기"
+          >
+            <ShieldAlert className="w-4 h-4 text-amber-300" />
+            팀 패널티 관리 🚨
+            {Object.values(penalties).filter((c) => c > 0).length > 0 && (
+              <span className="px-1.5 py-0.2 bg-white text-rose-700 rounded-full text-[10px] font-black shadow-2xs">
+                {Object.values(penalties).filter((c) => c > 0).length}팀
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -774,36 +815,87 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
             </div>
 
             {/* Practitioner Quick Buttons Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {DEFAULT_PRACTITIONERS.map((pName) => {
                 const isWaiting = waitingItems.some((i) => i.name === pName || i.name.includes(pName));
                 const isCalled = calledItems.some((i) => i.name === pName || i.name.includes(pName));
                 const isVip = pName === '박도현';
+                const penaltyCount = penalties[pName] || 0;
 
                 return (
-                  <button
-                    key={pName}
-                    onClick={() => handleDirectCallName(pName)}
-                    disabled={isDirectCalling}
-                    className={`py-2 px-2 rounded-xl text-xs font-extrabold transition-all duration-150 flex flex-col items-center justify-center gap-0.5 active:scale-95 border ${
-                      isCalled
-                        ? 'bg-amber-100 border-amber-300 text-amber-950 shadow-sm'
-                        : isWaiting
-                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-200'
-                        : isVip
-                        ? 'bg-amber-50 border-amber-300 hover:border-amber-400 text-slate-900 shadow-2xs'
-                        : 'bg-white border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 text-slate-800 shadow-2xs'
-                    }`}
-                    title={`${pName} 팀 즉시 호출`}
-                  >
-                    <div className="flex items-center gap-1">
-                      {isVip && <Crown className="w-3 h-3 text-amber-600 fill-amber-500" />}
-                      <span className="truncate">{pName}</span>
+                  <div key={pName} className="flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+                    <button
+                      onClick={() => handleDirectCallName(pName)}
+                      disabled={isDirectCalling}
+                      className={`py-2 px-2 text-xs font-extrabold transition-all duration-150 flex flex-col items-center justify-center gap-0.5 active:scale-95 border-b ${
+                        isCalled
+                          ? 'bg-amber-100 border-amber-300 text-amber-950 shadow-sm'
+                          : isWaiting
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-200'
+                          : isVip
+                          ? 'bg-amber-50 border-amber-200 text-slate-900'
+                          : 'bg-white border-slate-100 hover:bg-blue-50/50 text-slate-800'
+                      }`}
+                      title={`${pName} 팀 즉시 호출`}
+                    >
+                      <div className="flex items-center gap-1">
+                        {isVip && <Crown className="w-3 h-3 text-amber-600 fill-amber-500" />}
+                        <span className="truncate">{pName}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className={`text-[9px] font-bold ${isWaiting ? 'text-blue-100' : isCalled ? 'text-amber-800' : 'text-slate-400'}`}>
+                          {isCalled ? '🔥 호출중' : isWaiting ? '⏳ 대기중' : '⚡ 즉시호출'}
+                        </span>
+                        {penaltyCount > 0 && (
+                          <span className="px-1 py-0.2 bg-rose-600 text-white rounded text-[8px] font-black animate-pulse">
+                            🚨 {penaltyCount}회
+                          </span>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Quick Penalty Actions (+ / - / 0) */}
+                    <div className="flex items-center justify-between px-1.5 py-1 bg-slate-50 text-[10px]">
+                      <span className="text-[9px] font-black text-slate-400">패널티</span>
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onUpdatePenalty?.(pName, 1);
+                          }}
+                          className="w-4 h-4 bg-rose-100 hover:bg-rose-200 text-rose-700 font-black rounded text-[10px] flex items-center justify-center transition"
+                          title="패널티 +1회 부여"
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onUpdatePenalty?.(pName, -1);
+                          }}
+                          className="w-4 h-4 bg-slate-200 hover:bg-slate-300 text-slate-600 font-black rounded text-[10px] flex items-center justify-center transition"
+                          title="패널티 -1회 차감"
+                        >
+                          -
+                        </button>
+                        {penaltyCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onClearPenalty?.(pName);
+                            }}
+                            className="px-1 h-4 bg-slate-300 hover:bg-slate-400 text-slate-800 font-black text-[8px] rounded flex items-center justify-center transition"
+                            title="패널티 0회 초기화"
+                          >
+                            초기화
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <span className={`text-[9px] font-bold ${isWaiting ? 'text-blue-100' : isCalled ? 'text-amber-800' : 'text-slate-400'}`}>
-                      {isCalled ? '🔥 호출중' : isWaiting ? '⏳ 대기중' : '⚡ 즉시호출'}
-                    </span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -878,9 +970,21 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
                   );
                 }
 
-                // Sort with VIP priority first for waiting items, then registration order
+                // Sort with VIP priority first for waiting items, then penalty demotion (>=3), then registration order
                 const sortedItems = [...itemsToShow].sort((a, b) => {
                   if (a.status === 'waiting' && b.status === 'waiting') {
+                    const aPen = penalties[a.name] || 0;
+                    const bPen = penalties[b.name] || 0;
+                    const aDemoted = aPen >= 3;
+                    const bDemoted = bPen >= 3;
+
+                    if (aDemoted && !bDemoted) return 1;
+                    if (!aDemoted && bDemoted) return -1;
+                    if (aDemoted && bDemoted) {
+                      if (aPen !== bPen) return aPen - bPen;
+                      return a.registeredAt - b.registeredAt;
+                    }
+
                     const aVip = isVipItem(a);
                     const bVip = isVipItem(b);
                     if (aVip && !bVip) return -1;
@@ -917,6 +1021,8 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
                     badge = <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 text-rose-700">부재</span>;
                   }
 
+                  const itemPenalty = penalties[item.name] || 0;
+
                   return (
                     <motion.div
                       key={item.id}
@@ -927,7 +1033,7 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
                       className={`p-3.5 rounded-2xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm transition ${statusBg}`}
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                           <span className="font-extrabold text-sm text-slate-900 truncate">
                             {item.name}
@@ -938,6 +1044,14 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
                             </span>
                           )}
                           {badge}
+                          {itemPenalty > 0 && (
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1 shadow-2xs ${
+                              itemPenalty >= 3 ? 'bg-rose-700 text-amber-200' : 'bg-rose-600 text-white'
+                            }`}>
+                              <ShieldAlert className="w-3 h-3 text-amber-300" />
+                              패널티 {itemPenalty}회 {itemPenalty >= 3 && item.status === 'waiting' && '(최하단 순서)'}
+                            </span>
+                          )}
                         </div>
                         {item.remarks && (
                           <p className="text-xs text-slate-500 mt-1 truncate">
@@ -953,7 +1067,28 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
                       </div>
 
                       {/* Manual individual control buttons */}
-                      <div className="flex items-center gap-1.5 shrink-0 w-full md:w-auto justify-end">
+                      <div className="flex items-center gap-1.5 shrink-0 w-full md:w-auto justify-end flex-wrap">
+                        {/* Quick Penalty controls on item */}
+                        <div className="flex items-center gap-1 bg-slate-100/90 border border-slate-200 px-1.5 py-1 rounded-lg mr-1">
+                          <span className="text-[9px] font-bold text-slate-500">패널티</span>
+                          <button
+                            type="button"
+                            onClick={() => onUpdatePenalty?.(item.name, 1)}
+                            className="w-4 h-4 bg-rose-100 hover:bg-rose-200 text-rose-700 font-black rounded text-[10px] flex items-center justify-center transition"
+                            title={`${item.name} 팀 패널티 +1회`}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onUpdatePenalty?.(item.name, -1)}
+                            className="w-4 h-4 bg-slate-200 hover:bg-slate-300 text-slate-600 font-black rounded text-[10px] flex items-center justify-center transition"
+                            title={`${item.name} 팀 패널티 -1회`}
+                          >
+                            -
+                          </button>
+                        </div>
+
                         {item.status === 'waiting' && (
                           <>
                             <button
@@ -1048,6 +1183,165 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
                   className="py-3 bg-rose-600 hover:bg-rose-700 rounded-xl text-xs font-bold text-white transition active:scale-95 shadow-md shadow-rose-100"
                 >
                   네, 초기화합니다
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Team Penalty Management Full Modal */}
+      <AnimatePresence>
+        {showPenaltyModal && (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-4 md:p-6">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white border border-slate-200 max-w-2xl w-full p-6 md:p-8 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] relative overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-rose-100 text-rose-700 rounded-2xl">
+                    <ShieldAlert className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900">🚨 경기장 팀별 패널티 관리</h3>
+                    <p className="text-xs text-slate-500">각 팀에게 패널티를 부여하거나 차감/초기화할 수 있습니다.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowPenaltyModal(false)}
+                  className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Info banner */}
+              <div className="my-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-start gap-2.5 font-medium leading-relaxed">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong>패널티 주의 연동 안내:</strong> 패널티가 부여된 팀이 iPad 대기판에서 등록을 시도하면 <span className="text-rose-700 font-black font-underline">"패널티 누적 주의 및 이용수칙 준수"</span> 경고 알림창이 자동으로 표시됩니다.
+                </div>
+              </div>
+
+              {/* Add Custom Penalty Name Search Input */}
+              <div className="flex gap-2 mb-4">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    placeholder="팀/연습자 이름 입력 (예: K.F.C. Legend, 배지훈...)"
+                    value={penaltySearchInput}
+                    onChange={(e) => setPenaltySearchInput(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-rose-500"
+                  />
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                </div>
+                {penaltySearchInput.trim() && (
+                  <button
+                    onClick={() => {
+                      if (penaltySearchInput.trim()) {
+                        onUpdatePenalty?.(penaltySearchInput.trim(), 1);
+                        setPenaltySearchInput('');
+                      }
+                    }}
+                    className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shrink-0 transition"
+                  >
+                    + 패널티 1회 부여
+                  </button>
+                )}
+              </div>
+
+              {/* Team list with penalty status & controls */}
+              <div className="flex-1 overflow-y-auto pr-1 space-y-2">
+                {(() => {
+                  // Unique set of team names: DEFAULT_PRACTITIONERS + any from penalties + queue
+                  const allKnownNamesSet = new Set<string>([
+                    ...DEFAULT_PRACTITIONERS,
+                    ...Object.keys(penalties),
+                    ...queue.map((q) => q.name),
+                  ]);
+
+                  const filteredNames = Array.from(allKnownNamesSet).filter((name) =>
+                    name.toLowerCase().includes(penaltySearchInput.toLowerCase().trim())
+                  );
+
+                  if (filteredNames.length === 0) {
+                    return (
+                      <div className="py-8 text-center text-slate-400 font-bold text-xs">
+                        검색된 팀이 없습니다.
+                      </div>
+                    );
+                  }
+
+                  return filteredNames.map((tName) => {
+                    const pCount = penalties[tName] || 0;
+                    return (
+                      <div
+                        key={tName}
+                        className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition ${
+                          pCount > 0
+                            ? 'bg-rose-50/60 border-rose-200 text-rose-950'
+                            : 'bg-slate-50/60 border-slate-200 text-slate-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="font-extrabold text-sm text-slate-900 truncate">
+                            {tName}
+                          </span>
+                          {pCount > 0 ? (
+                            <span className="px-2.5 py-0.5 bg-rose-600 text-white rounded-full text-xs font-black animate-pulse flex items-center gap-1 shadow-xs">
+                              🚨 패널티 {pCount}회
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-slate-200 text-slate-600 rounded-full text-[10px] font-bold">
+                              패널티 없음 (0회)
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Control buttons */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => onUpdatePenalty?.(tName, 1)}
+                            className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl transition shadow-xs flex items-center gap-1"
+                            title="패널티 +1회 부여"
+                          >
+                            +1 부여
+                          </button>
+                          <button
+                            onClick={() => onUpdatePenalty?.(tName, -1)}
+                            disabled={pCount <= 0}
+                            className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 disabled:opacity-40 text-slate-700 font-bold text-xs rounded-xl transition"
+                            title="패널티 -1회 차감"
+                          >
+                            -1 차감
+                          </button>
+                          {pCount > 0 && (
+                            <button
+                              onClick={() => onClearPenalty?.(tName)}
+                              className="px-2.5 py-1.5 bg-slate-300 hover:bg-slate-400 text-slate-800 font-black text-xs rounded-xl transition"
+                              title="패널티 0회로 초기화"
+                            >
+                              초기화
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Modal footer */}
+              <div className="pt-4 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={() => setShowPenaltyModal(false)}
+                  className="px-6 py-3 bg-slate-900 hover:bg-slate-950 text-white font-black text-xs rounded-2xl transition"
+                >
+                  닫기
                 </button>
               </div>
             </motion.div>

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Ticket, User, MessageSquare, CheckCircle2, Users, ArrowLeft, Plus, Crown } from 'lucide-react';
+import { Ticket, User, MessageSquare, CheckCircle2, Users, ArrowLeft, Plus, Crown, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { QueueItem, DEFAULT_PRACTITIONERS } from '../types';
 
 interface IpadRegisterProps {
   queue: QueueItem[];
+  penalties?: Record<string, number>;
   onBack: () => void;
   onRegister: (name: string, remarks?: string) => Promise<QueueItem | null>;
 }
@@ -16,36 +17,49 @@ const PRESET_REMARKS = [
   '기록 단축 미션 시도',
 ];
 
-export default function IpadRegister({ queue, onBack, onRegister }: IpadRegisterProps) {
+export default function IpadRegister({ queue, penalties = {}, onBack, onRegister }: IpadRegisterProps) {
   const [selectedName, setSelectedName] = useState<string>('');
   const [customName, setCustomName] = useState<string>('');
   const [selectedRemark, setSelectedRemark] = useState<string>('');
   const [customRemark, setCustomRemark] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [issuedTicket, setIssuedTicket] = useState<QueueItem | null>(null);
+  const [showPenaltyCautionModal, setShowPenaltyCautionModal] = useState<boolean>(false);
 
   const waitingCount = queue.filter((item) => item.status === 'waiting').length;
 
-  const isVipName = (name: string) => {
-    const trimmed = name.trim();
-    return trimmed === '박도현' || trimmed.includes('박도현');
-  };
-
   const getActiveName = () => {
-    return selectedName === 'custom' ? customName : selectedName;
+    return (selectedName === 'custom' ? customName : selectedName).trim();
   };
 
   const getActiveRemark = () => {
-    return selectedRemark === 'custom' ? customRemark : selectedRemark;
+    return (selectedRemark === 'custom' ? customRemark : selectedRemark).trim();
   };
+
+  const activeName = getActiveName();
+  const activePenaltyCount = activeName ? (penalties[activeName] || 0) : 0;
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const finalName = getActiveName().trim();
+    const finalName = getActiveName();
+    if (!finalName) return;
+
+    // If team has penalties, show the caution popup first if not confirmed yet
+    if (activePenaltyCount > 0 && !showPenaltyCautionModal) {
+      setShowPenaltyCautionModal(true);
+      return;
+    }
+
+    await executeRegistration();
+  };
+
+  const executeRegistration = async () => {
+    const finalName = getActiveName();
     if (!finalName) return;
 
     setIsSubmitting(true);
-    const remark = getActiveRemark().trim();
+    setShowPenaltyCautionModal(false);
+    const remark = getActiveRemark();
     
     const ticket = await onRegister(finalName, remark || undefined);
     setIsSubmitting(false);
@@ -58,10 +72,10 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
       setSelectedRemark('');
       setCustomRemark('');
 
-      // Auto-dismiss ticket after 4.5 seconds
+      // Auto-dismiss ticket after 5 seconds
       setTimeout(() => {
         setIssuedTicket(null);
-      }, 4500);
+      }, 5000);
     }
   };
 
@@ -115,6 +129,7 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
                 {DEFAULT_PRACTITIONERS.map((name) => {
                   const isSelected = selectedName === name;
                   const isVip = name === '박도현';
+                  const penaltyCount = penalties[name] || 0;
                   return (
                     <button
                       key={name}
@@ -133,6 +148,11 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
                       {isVip && (
                         <span className="absolute top-2 right-2 px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded text-[9px] font-black flex items-center gap-0.5 shadow-sm">
                           <Crown className="w-2.5 h-2.5 fill-amber-950 text-amber-950" /> VIP 1순위
+                        </span>
+                      )}
+                      {penaltyCount > 0 && (
+                        <span className="absolute top-2 left-2 px-1.5 py-0.5 bg-rose-600 text-white rounded text-[9px] font-black flex items-center gap-0.5 shadow-sm">
+                          <ShieldAlert className="w-2.5 h-2.5 text-white" /> 패널티 {penaltyCount}회
                         </span>
                       )}
                       <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : isVip ? 'bg-amber-500' : 'bg-slate-300'}`} />
@@ -176,6 +196,33 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
                       onChange={(e) => setCustomName(e.target.value)}
                       className="w-full px-5 py-4 bg-slate-50 border-2 border-blue-500 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-100 font-bold text-lg text-slate-800 placeholder-slate-400"
                     />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Penalty Warning Card if selected team has penalty count */}
+              <AnimatePresence>
+                {activePenaltyCount > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-start gap-3 text-rose-900 shadow-sm"
+                  >
+                    <ShieldAlert className="w-6 h-6 text-rose-600 shrink-0 mt-0.5 animate-bounce" />
+                    <div className="text-xs font-bold leading-relaxed space-y-1">
+                      <span className="text-sm font-black text-rose-700 block mb-0.5">
+                        🚨 [{activeName}] 님은 현재 패널티가 <u className="underline underline-offset-2 decoration-rose-500 font-black">{activePenaltyCount}회</u> 부여되어 있습니다!
+                      </span>
+                      {activePenaltyCount >= 3 && (
+                        <p className="text-xs font-black text-rose-800 bg-rose-100 p-2 rounded-xl border border-rose-200">
+                          🔻 패널티 3회 이상 누적: 등록 시 대기 순서가 <u>가장 마지막(최하단)</u>으로 자동 배치됩니다.
+                        </p>
+                      )}
+                      <p className="text-slate-700">
+                        앞으로는 패널티가 쌓이지 않도록 경기장 이용 및 정리 수칙 준수에 주의 부탁드립니다.
+                      </p>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -391,6 +438,12 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
                     📌 {issuedTicket.remarks}
                   </p>
                 )}
+                {(penalties[issuedTicket.name] || 0) > 0 && (
+                  <div className="mt-2.5 p-2.5 bg-rose-50 border border-rose-300 text-rose-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs">
+                    <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>패널티 {penalties[issuedTicket.name]}회 보유중 (주의 필요)</span>
+                  </div>
+                )}
               </div>
 
               {/* Footer statistics */}
@@ -407,6 +460,61 @@ export default function IpadRegister({ queue, onBack, onRegister }: IpadRegister
               >
                 닫기
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Penalty Caution Alert Modal Dialog */}
+      <AnimatePresence>
+        {showPenaltyCautionModal && (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-6">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white border-2 border-rose-200 max-w-md w-full p-6 md:p-8 rounded-3xl text-center shadow-2xl relative overflow-hidden"
+            >
+              <div className="w-16 h-16 bg-rose-100 border-2 border-rose-300 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                <ShieldAlert className="w-9 h-9" />
+              </div>
+
+              <h3 className="text-2xl font-black text-slate-900">🚨 패널티 누적 주의 안내</h3>
+              
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 my-4 text-left space-y-2 text-rose-950">
+                <p className="text-sm font-black text-rose-800 flex items-center gap-1.5">
+                  <span className="bg-rose-600 text-white px-2 py-0.5 rounded text-xs">확인 필요</span>
+                  [{activeName}] 팀 패널티 {activePenaltyCount}회 보유 중
+                </p>
+                <p className="text-xs font-semibold leading-relaxed text-slate-700">
+                  선택하신 <strong className="text-rose-700 font-extrabold">{activeName}</strong> 님은 현재 경기장 운영 규정 미준수 등으로 인해 <strong className="text-rose-700 font-extrabold">패널티가 {activePenaltyCount}회</strong> 쌓여있습니다.
+                </p>
+                {activePenaltyCount >= 3 && (
+                  <p className="text-xs font-black text-rose-900 bg-rose-100 p-2.5 rounded-xl border border-rose-300 flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>패널티가 3회 이상이므로 등록 시 대기 순서가 <u>가장 마지막(최하단)</u>으로 자동 조정됩니다.</span>
+                  </p>
+                )}
+                <p className="text-xs font-bold text-rose-800 pt-1 border-t border-rose-200">
+                  ⚠️ 앞으로는 패널티가 추가로 쌓이지 않도록 경기장 이용 후 정시 철수 및 정리에 꼭 주의해 주시기 바랍니다!
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 mt-6">
+                <button
+                  onClick={executeRegistration}
+                  className="w-full py-4 bg-rose-600 hover:bg-rose-700 active:scale-98 text-white font-extrabold rounded-2xl text-base transition shadow-lg shadow-rose-200 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  네, 주의하겠습니다 (등록 계속)
+                </button>
+                <button
+                  onClick={() => setShowPenaltyCautionModal(false)}
+                  className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-2xl text-sm transition"
+                >
+                  취소하기
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

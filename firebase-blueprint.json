@@ -42,12 +42,37 @@
         }
       },
       "required": ["id", "number", "name", "registeredAt", "status"]
+    },
+    "penalty": {
+      "title": "Penalty",
+      "description": "Represents penalty counts for a team or practitioner",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Name of practitioner or team"
+        },
+        "count": {
+          "type": "integer",
+          "description": "Number of penalties accumulated"
+        },
+        "updatedAt": {
+          "type": "integer",
+          "description": "Timestamp of last update"
+        }
+      },
+      "required": ["name", "count", "updatedAt"]
     }
   },
   "firestore": {
     "queue/{id}": {
       "schema": "queueItem",
       "description": "Collection of all queue entries"
+    },
+    "penalties/{id}": {
+      "schema": "penalty",
+      "description": "Collection of team penalty counts"
     }
   }
 }
