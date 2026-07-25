@@ -21,8 +21,12 @@ import {
   Siren,
   PackageCheck,
   Crown,
+  Zap,
+  UserCheck,
+  Search,
+  Plus,
 } from 'lucide-react';
-import { QueueItem } from '../types';
+import { QueueItem, DEFAULT_PRACTITIONERS } from '../types';
 
 // Helper to identify VIP practitioners who get 1st priority call placement
 export const isVipItem = (item: QueueItem) => item.name === '박도현' || item.name.includes('박도현');
@@ -31,6 +35,7 @@ interface PcDashboardProps {
   queue: QueueItem[];
   onBack: () => void;
   onUpdateStatus: (id: string, status: 'waiting' | 'called' | 'completed' | 'skipped') => Promise<void>;
+  onRegister?: (name: string, remarks?: string) => Promise<QueueItem | null>;
   onReset: () => Promise<void>;
 }
 
@@ -253,11 +258,14 @@ function speakKorean(text: string) {
   window.speechSynthesis.speak(utterance);
 }
 
-export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: PcDashboardProps) {
+export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister, onReset }: PcDashboardProps) {
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [isSoundEnabled, setIsSoundEnabled] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'waiting' | 'called' | 'history'>('all');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [directCustomName, setDirectCustomName] = useState('');
+  const [directCallToast, setDirectCallToast] = useState<string | null>(null);
+  const [isDirectCalling, setIsDirectCalling] = useState(false);
 
   // Keep track of the last called ID to trigger automatic voice calling only when a new item is called
   const lastCalledIdRef = useRef<string | null>(null);
@@ -307,6 +315,54 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
   const handleCallNext = async () => {
     if (nextWaiting) {
       await onUpdateStatus(nextWaiting.id, 'called');
+    }
+  };
+
+  const handleDirectCallName = async (targetName: string) => {
+    const trimmed = targetName.trim();
+    if (!trimmed || isDirectCalling) return;
+
+    setIsDirectCalling(true);
+    try {
+      // 1. First check if this practitioner is already waiting in queue
+      const waitingMatch = queue.find(
+        (item) => item.status === 'waiting' && item.name.trim() === trimmed
+      );
+
+      if (waitingMatch) {
+        await onUpdateStatus(waitingMatch.id, 'called');
+        setDirectCallToast(`'${waitingMatch.name}' 팀을 즉시 호명했습니다!`);
+      } else {
+        // 2. Check if they are currently called
+        const calledMatch = queue.find(
+          (item) => item.status === 'called' && item.name.trim() === trimmed
+        );
+
+        if (calledMatch) {
+          if (isSoundEnabled) playDingDongChime();
+          if (isVoiceEnabled) {
+            setTimeout(() => {
+              speakKorean(`다시 호명합니다. ${calledMatch.name} 팀, ${calledMatch.name} 팀, 연습 경기장으로 신속히 입장해 주세요.`);
+            }, 400);
+          }
+          setDirectCallToast(`'${calledMatch.name}' 팀을 다시 호명했습니다!`);
+        } else if (onRegister) {
+          // 3. Not in queue or completed/skipped: auto-register and call
+          const newItem = await onRegister(trimmed, '호출스크린 원클릭 호명');
+          if (newItem && newItem.id) {
+            await onUpdateStatus(newItem.id, 'called');
+            setDirectCallToast(`'${trimmed}' 팀을 등록 후 즉시 호명했습니다!`);
+          }
+        }
+      }
+      setDirectCustomName('');
+    } catch (err) {
+      console.error('Direct call error:', err);
+    } finally {
+      setIsDirectCalling(false);
+      setTimeout(() => {
+        setDirectCallToast(null);
+      }, 3500);
     }
   };
 
@@ -663,8 +719,83 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
               }`}
             >
               <Megaphone className="w-4.5 h-4.5" />
-              {nextWaiting ? `다음 팀 호명하기 (${nextWaiting.name})` : '대기 중인 팀이 없습니다'}
+              {nextWaiting ? `순서대로 다음 팀 호명하기 (${nextWaiting.name})` : '대기 중인 팀이 없습니다'}
             </button>
+          </div>
+
+          {/* Direct Name Selection Quick Call Box */}
+          <div className="p-3.5 bg-blue-50/70 border-b border-slate-200/80 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-blue-950 flex items-center gap-1.5">
+                <Zap className="w-4 h-4 text-blue-600 fill-blue-600 animate-pulse" />
+                이름 선택 즉시 호출 (원클릭)
+              </span>
+              <span className="text-[10px] text-blue-700 font-bold bg-blue-100/80 px-2 py-0.5 rounded-full">
+                클릭 시 바로 호명
+              </span>
+            </div>
+
+            {/* Practitioner Quick Buttons Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              {DEFAULT_PRACTITIONERS.map((pName) => {
+                const isWaiting = waitingItems.some((i) => i.name === pName || i.name.includes(pName));
+                const isCalled = calledItems.some((i) => i.name === pName || i.name.includes(pName));
+                const isVip = pName === '박도현';
+
+                return (
+                  <button
+                    key={pName}
+                    onClick={() => handleDirectCallName(pName)}
+                    disabled={isDirectCalling}
+                    className={`py-2 px-2 rounded-xl text-xs font-extrabold transition-all duration-150 flex flex-col items-center justify-center gap-0.5 active:scale-95 border ${
+                      isCalled
+                        ? 'bg-amber-100 border-amber-300 text-amber-950 shadow-sm'
+                        : isWaiting
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-200'
+                        : isVip
+                        ? 'bg-amber-50 border-amber-300 hover:border-amber-400 text-slate-900 shadow-2xs'
+                        : 'bg-white border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 text-slate-800 shadow-2xs'
+                    }`}
+                    title={`${pName} 팀 즉시 호출`}
+                  >
+                    <div className="flex items-center gap-1">
+                      {isVip && <Crown className="w-3 h-3 text-amber-600 fill-amber-500" />}
+                      <span className="truncate">{pName}</span>
+                    </div>
+                    <span className={`text-[9px] font-bold ${isWaiting ? 'text-blue-100' : isCalled ? 'text-amber-800' : 'text-slate-400'}`}>
+                      {isCalled ? '🔥 호출중' : isWaiting ? '⏳ 대기중' : '⚡ 즉시호출'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Custom Name Direct Call Input */}
+            <div className="flex gap-1.5 pt-0.5">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="팀/연습자 이름 직접 입력..."
+                  value={directCustomName}
+                  onChange={(e) => setDirectCustomName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleDirectCallName(directCustomName);
+                    }
+                  }}
+                  className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 focus:border-blue-500 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+              </div>
+              <button
+                onClick={() => handleDirectCallName(directCustomName)}
+                disabled={!directCustomName.trim() || isDirectCalling}
+                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-extrabold flex items-center gap-1 transition shadow-sm active:scale-95 shrink-0"
+              >
+                <Megaphone className="w-3.5 h-3.5" />
+                호출
+              </button>
+            </div>
           </div>
 
           {/* List category tabs */}
@@ -883,6 +1014,22 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onReset }: 
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+      {/* Direct Call Floating Toast Notification */}
+      <AnimatePresence>
+        {directCallToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-8 right-8 z-50 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 font-extrabold text-sm"
+          >
+            <div className="p-2 bg-blue-600 rounded-xl text-white">
+              <Megaphone className="w-4 h-4 animate-bounce" />
+            </div>
+            <span className="text-slate-100">{directCallToast}</span>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

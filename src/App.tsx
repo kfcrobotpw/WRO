@@ -200,6 +200,7 @@ export default function App() {
               queue={queue}
               onBack={() => setViewMode('select')}
               onUpdateStatus={handleUpdateStatus}
+              onRegister={handleRegister}
               onReset={handleReset}
             />
           </motion.div>
