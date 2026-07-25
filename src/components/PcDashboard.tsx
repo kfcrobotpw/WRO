@@ -462,6 +462,18 @@ export default function PcDashboard({
     setDirectCallToast('📝 대기 등록 후 경기장 이용 안내 방송을 송출했습니다!');
   };
 
+  const handleEquipmentCareNotice = () => {
+    if (isSoundEnabled) {
+      playDingDongChime();
+    }
+
+    if (isVoiceEnabled) {
+      const message = `안내 말씀 드립니다! 경기장의 로봇, 센서, 미션 오브젝트 및 조종 장비 등 모든 기물을 소중히 다뤄주시기 바랍니다! 기물 무단 훼손 및 난폭 취급 시 패널티가 부여될 수 있으니 참가자 여러분의 각별한 주의와 협조 부탁드립니다!`;
+      speakKorean(message);
+    }
+    setDirectCallToast('⚙️ 경기장 기물 보호 및 소중히 다루기 안내 방송을 송출했습니다!');
+  };
+
   const handleCompleteCurrent = async () => {
     if (currentCalled) {
       await onUpdateStatus(currentCalled.id, 'completed');
@@ -558,6 +570,14 @@ export default function PcDashboard({
           >
             <ClipboardList className="w-4 h-4 text-sky-200" />
             대기 등록 안내 📝
+          </button>
+          <button
+            onClick={handleEquipmentCareNotice}
+            className="px-3 py-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-amber-600/20 cursor-pointer"
+            title="경기장 기물 및 로봇 보호 수칙 안내 방송"
+          >
+            <ShieldAlert className="w-4 h-4 text-amber-200" />
+            기물 보호 ⚙️
           </button>
           <div className="w-px h-5 bg-slate-700 mx-0.5" />
           <button
@@ -690,6 +710,14 @@ export default function PcDashboard({
                   <ClipboardList className="w-4 h-4 text-sky-200" />
                   대기 등록 안내 📝
                 </button>
+                <button
+                  onClick={handleEquipmentCareNotice}
+                  className="flex-1 min-w-[110px] px-3.5 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
+                  title="경기장 기물 및 로봇 보호 수칙 안내 방송"
+                >
+                  <ShieldAlert className="w-4 h-4 text-amber-200" />
+                  기물 보호 ⚙️
+                </button>
 
                 {/* Called team specific actions */}
                 {currentCalled && (
@@ -763,6 +791,19 @@ export default function PcDashboard({
               <div className="w-12 h-12 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 shadow-inner">
                 <Users className="w-6 h-6 text-blue-600" />
               </div>
+            </div>
+          </div>
+
+          {/* Arena Equipment Care Banner Notice */}
+          <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-4 flex items-center gap-3.5 text-amber-950 shadow-2xs">
+            <div className="p-2.5 bg-amber-200/80 text-amber-900 rounded-xl shrink-0">
+              <ShieldAlert className="w-5 h-5 text-amber-900" />
+            </div>
+            <div className="text-xs leading-relaxed font-bold">
+              <span className="text-amber-900 font-extrabold text-xs uppercase tracking-wider block mb-0.5">
+                ⚠️ 경기장 기물 및 로봇 보호 수칙
+              </span>
+              경기장 매트, 미션 오브젝트, 제어 및 센서 기물을 소중히 다뤄주시기 바랍니다. 난폭 취급 및 무단 훼손 발생 시 패널티가 부여될 수 있습니다.
             </div>
           </div>
         </div>

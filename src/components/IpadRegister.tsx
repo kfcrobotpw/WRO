@@ -386,9 +386,12 @@ export default function IpadRegister({ queue, penalties = {}, onBack, onRegister
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-200 text-xs text-slate-400 leading-relaxed">
-            <p className="font-semibold text-slate-500 mb-1">🚨 대기 수칙</p>
+            <p className="font-semibold text-slate-500 mb-1">🚨 대기 수칙 및 주의사항</p>
             <p>1. 자신의 팀 이름이 PC 스크린에 뜰 때까지 로봇 점검 및 프로그램을 세팅해 주세요.</p>
             <p className="mt-1">2. 연습 호명 후 즉시 참석하지 않으면 다음 순번으로 전환될 수 있습니다.</p>
+            <p className="mt-1 font-bold text-amber-800 bg-amber-50 p-1.5 rounded-lg border border-amber-200">
+              3. ⚙️ 경기장 매트, 미션 오브젝트, 제어 기물을 소중히 다뤄주세요. (기물 난폭 취급/훼손 시 패널티 부여)
+            </p>
           </div>
         </div>
       </div>
@@ -444,6 +447,10 @@ export default function IpadRegister({ queue, penalties = {}, onBack, onRegister
                     <span>패널티 {penalties[issuedTicket.name]}회 보유중 (주의 필요)</span>
                   </div>
                 )}
+                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span>⚙️ 경기장 기물 및 로봇을 소중히 다뤄주시기 바랍니다!</span>
+                </div>
               </div>
 
               {/* Footer statistics */}
