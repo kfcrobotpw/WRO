@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Tablet, Tv, Cpu, ShieldAlert, ArrowRight, RefreshCw, ServerCrash } from 'lucide-react';
+import { Tablet, Tv, Cpu, ShieldAlert, ArrowRight, RefreshCw, ServerCrash, Lock, KeyRound, ShieldCheck, LogOut } from 'lucide-react';
 import { QueueItem, ViewMode } from './types';
 import IpadRegister from './components/IpadRegister';
 import PcDashboard from './components/PcDashboard';
@@ -14,12 +14,40 @@ import {
   clearPenaltyCount
 } from './lib/firebase';
 
+const REQUIRED_PASSWORD = 'kfcrobotpw@1234';
+
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return sessionStorage.getItem('wro_arena_auth') === 'true' || localStorage.getItem('wro_arena_auth') === 'true';
+  });
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+
   const [viewMode, setViewMode] = useState<ViewMode>('select');
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [penalties, setPenalties] = useState<Record<string, number>>({});
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput.trim() === REQUIRED_PASSWORD) {
+      setIsAuthenticated(true);
+      setPasswordError(false);
+      sessionStorage.setItem('wro_arena_auth', 'true');
+      localStorage.setItem('wro_arena_auth', 'true');
+    } else {
+      setPasswordError(true);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    sessionStorage.removeItem('wro_arena_auth');
+    localStorage.removeItem('wro_arena_auth');
+    setPasswordInput('');
+    setPasswordError(false);
+  };
 
   // Real-time updates subscription using Firestore onSnapshot
   useEffect(() => {
@@ -91,6 +119,83 @@ export default function App() {
       console.error('Clear penalty failed:', err);
     }
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        {/* Background ambient lighting */}
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="max-w-md w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl backdrop-blur-xl relative z-10 space-y-6 text-white"
+        >
+          <div className="flex flex-col items-center text-center space-y-3">
+            <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg shadow-blue-500/20 text-white">
+              <Lock className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black tracking-tight text-white">
+                WRO Arena 로그인
+              </h2>
+              <p className="text-xs text-slate-400 mt-1 font-medium">
+                시스템에 접근하려면 비밀번호를 입력해주세요.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5 text-blue-400" />
+                비밀번호 (Password)
+              </label>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => {
+                  setPasswordInput(e.target.value);
+                  if (passwordError) setPasswordError(false);
+                }}
+                placeholder="비밀번호를 입력하세요..."
+                autoFocus
+                className={`w-full px-4 py-3 bg-slate-950 border rounded-2xl text-sm font-semibold text-white placeholder-slate-500 focus:outline-none transition ${
+                  passwordError
+                    ? 'border-rose-500 focus:ring-2 focus:ring-rose-500/30'
+                    : 'border-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                }`}
+              />
+              {passwordError && (
+                <motion.p
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-xs font-bold text-rose-400 flex items-center gap-1 pt-1"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  비밀번호가 올바르지 않습니다. 다시 확인해 주세요.
+                </motion.p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-black rounded-2xl text-sm transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              접속 승인
+            </button>
+          </form>
+
+          <div className="pt-2 text-center border-t border-slate-800/80">
+            <p className="text-[11px] font-medium text-slate-500">
+              K.F.C. Robot Arena Management System
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 font-sans">
@@ -199,6 +304,14 @@ export default function App() {
                   <ShieldAlert className="w-4 h-4 text-slate-600" />
                   <span>같은 네트워크의 다양한 기기(스마트폰, 아이패드, 노트북)에서 동시에 접속하여 실시간 연동됩니다.</span>
                 </div>
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl flex items-center gap-1.5 text-xs font-bold transition cursor-pointer"
+                  title="잠금 / 로그아웃"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                  잠금
+                </button>
               </div>
             </div>
           </motion.div>

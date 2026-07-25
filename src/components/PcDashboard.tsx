@@ -351,7 +351,7 @@ export default function PcDashboard({
     }
   };
 
-  const handleDirectCallName = async (targetName: string) => {
+  const handleDirectAddToQueue = async (targetName: string) => {
     const trimmed = targetName.trim();
     if (!trimmed || isDirectCalling) return;
 
@@ -363,8 +363,7 @@ export default function PcDashboard({
       );
 
       if (waitingMatch) {
-        await onUpdateStatus(waitingMatch.id, 'called');
-        setDirectCallToast(`'${waitingMatch.name}' 팀을 즉시 호명했습니다!`);
+        setDirectCallToast(`'${waitingMatch.name}' 팀은 이미 대기열에 등록되어 있습니다.`);
       } else {
         // 2. Check if they are currently called
         const calledMatch = queue.find(
@@ -372,25 +371,18 @@ export default function PcDashboard({
         );
 
         if (calledMatch) {
-          if (isSoundEnabled) playDingDongChime();
-          if (isVoiceEnabled) {
-            setTimeout(() => {
-              speakKorean(`다시 호명합니다. ${calledMatch.name} 팀, ${calledMatch.name} 팀, 연습 경기장으로 신속히 입장해 주세요.`);
-            }, 400);
-          }
-          setDirectCallToast(`'${calledMatch.name}' 팀을 다시 호명했습니다!`);
+          setDirectCallToast(`'${calledMatch.name}' 팀은 현재 경기장에서 연습 중입니다.`);
         } else if (onRegister) {
-          // 3. Not in queue or completed/skipped: auto-register and call
-          const newItem = await onRegister(trimmed, '호출스크린 원클릭 호명');
+          // 3. Not in queue or completed/skipped: register to waiting queue
+          const newItem = await onRegister(trimmed, '호출스크린 원클릭 대기등록');
           if (newItem && newItem.id) {
-            await onUpdateStatus(newItem.id, 'called');
-            setDirectCallToast(`'${trimmed}' 팀을 등록 후 즉시 호명했습니다!`);
+            setDirectCallToast(`'${trimmed}' 팀을 대기열에 추가했습니다!`);
           }
         }
       }
       setDirectCustomName('');
     } catch (err) {
-      console.error('Direct call error:', err);
+      console.error('Direct add to queue error:', err);
     } finally {
       setIsDirectCalling(false);
       setTimeout(() => {
@@ -843,15 +835,15 @@ export default function PcDashboard({
             </button>
           </div>
 
-          {/* Direct Name Selection Quick Call Box */}
+          {/* Direct Name Selection Quick Waitlist Box */}
           <div className="p-3.5 bg-blue-50/70 border-b border-slate-200/80 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-black text-blue-950 flex items-center gap-1.5">
-                <Zap className="w-4 h-4 text-blue-600 fill-blue-600 animate-pulse" />
-                이름 선택 즉시 호출 (원클릭)
+                <Plus className="w-4 h-4 text-blue-600" />
+                이름 선택 대기열 추가 (원클릭)
               </span>
               <span className="text-[10px] text-blue-700 font-bold bg-blue-100/80 px-2 py-0.5 rounded-full">
-                클릭 시 바로 호명
+                클릭 시 대기등록
               </span>
             </div>
 
@@ -866,9 +858,9 @@ export default function PcDashboard({
                 return (
                   <div key={pName} className="flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
                     <button
-                      onClick={() => handleDirectCallName(pName)}
+                      onClick={() => handleDirectAddToQueue(pName)}
                       disabled={isDirectCalling}
-                      className={`py-2 px-2 text-xs font-extrabold transition-all duration-150 flex flex-col items-center justify-center gap-0.5 active:scale-95 border-b ${
+                      className={`py-2 px-2 text-xs font-extrabold transition-all duration-150 flex flex-col items-center justify-center gap-0.5 active:scale-95 border-b cursor-pointer ${
                         isCalled
                           ? 'bg-amber-100 border-amber-300 text-amber-950 shadow-sm'
                           : isWaiting
@@ -877,15 +869,15 @@ export default function PcDashboard({
                           ? 'bg-amber-50 border-amber-200 text-slate-900'
                           : 'bg-white border-slate-100 hover:bg-blue-50/50 text-slate-800'
                       }`}
-                      title={`${pName} 팀 즉시 호출`}
+                      title={`${pName} 팀 대기 목록에 추가`}
                     >
                       <div className="flex items-center gap-1">
                         {isVip && <Crown className="w-3 h-3 text-amber-600 fill-amber-500" />}
                         <span className="truncate">{pName}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className={`text-[9px] font-bold ${isWaiting ? 'text-blue-100' : isCalled ? 'text-amber-800' : 'text-slate-400'}`}>
-                          {isCalled ? '🔥 호출중' : isWaiting ? '⏳ 대기중' : '⚡ 즉시호출'}
+                        <span className={`text-[9px] font-bold ${isWaiting ? 'text-blue-100' : isCalled ? 'text-amber-800' : 'text-slate-500'}`}>
+                          {isCalled ? '🔥 연습중' : isWaiting ? '⏳ 대기중' : '➕ 대기추가'}
                         </span>
                         {penaltyCount > 0 && (
                           <span className="px-1 py-0.2 bg-rose-600 text-white rounded text-[8px] font-black animate-pulse">
@@ -905,7 +897,7 @@ export default function PcDashboard({
                             e.stopPropagation();
                             onUpdatePenalty?.(pName, 1);
                           }}
-                          className="w-4 h-4 bg-rose-100 hover:bg-rose-200 text-rose-700 font-black rounded text-[10px] flex items-center justify-center transition"
+                          className="w-4 h-4 bg-rose-100 hover:bg-rose-200 text-rose-700 font-black rounded text-[10px] flex items-center justify-center transition cursor-pointer"
                           title="패널티 +1회 부여"
                         >
                           +
@@ -916,7 +908,7 @@ export default function PcDashboard({
                             e.stopPropagation();
                             onUpdatePenalty?.(pName, -1);
                           }}
-                          className="w-4 h-4 bg-slate-200 hover:bg-slate-300 text-slate-600 font-black rounded text-[10px] flex items-center justify-center transition"
+                          className="w-4 h-4 bg-slate-200 hover:bg-slate-300 text-slate-600 font-black rounded text-[10px] flex items-center justify-center transition cursor-pointer"
                           title="패널티 -1회 차감"
                         >
                           -
@@ -928,7 +920,7 @@ export default function PcDashboard({
                               e.stopPropagation();
                               onClearPenalty?.(pName);
                             }}
-                            className="px-1 h-4 bg-slate-300 hover:bg-slate-400 text-slate-800 font-black text-[8px] rounded flex items-center justify-center transition"
+                            className="px-1 h-4 bg-slate-300 hover:bg-slate-400 text-slate-800 font-black text-[8px] rounded flex items-center justify-center transition cursor-pointer"
                             title="패널티 0회 초기화"
                           >
                             초기화
@@ -941,7 +933,7 @@ export default function PcDashboard({
               })}
             </div>
 
-            {/* Custom Name Direct Call Input */}
+            {/* Custom Name Direct Add Input */}
             <div className="flex gap-1.5 pt-0.5">
               <div className="relative flex-1">
                 <input
@@ -951,7 +943,7 @@ export default function PcDashboard({
                   onChange={(e) => setDirectCustomName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
-                      handleDirectCallName(directCustomName);
+                      handleDirectAddToQueue(directCustomName);
                     }
                   }}
                   className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 focus:border-blue-500 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-100"
@@ -959,12 +951,12 @@ export default function PcDashboard({
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
               </div>
               <button
-                onClick={() => handleDirectCallName(directCustomName)}
+                onClick={() => handleDirectAddToQueue(directCustomName)}
                 disabled={!directCustomName.trim() || isDirectCalling}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-extrabold flex items-center gap-1 transition shadow-sm active:scale-95 shrink-0"
+                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs font-extrabold flex items-center gap-1 transition shadow-sm active:scale-95 shrink-0 cursor-pointer"
               >
-                <Megaphone className="w-3.5 h-3.5" />
-                호출
+                <Plus className="w-3.5 h-3.5" />
+                대기 추가
               </button>
             </div>
           </div>
