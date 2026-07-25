@@ -39,12 +39,27 @@ interface PcDashboardProps {
   onReset: () => Promise<void>;
 }
 
+// Safely instantiate and resume AudioContext for web browsers
+function getActiveAudioCtx(): AudioContext | null {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return null;
+    const ctx = new AudioContextClass();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch((e) => console.warn('AudioContext resume error:', e));
+    }
+    return ctx;
+  } catch (err) {
+    console.error('AudioContext creation error:', err);
+    return null;
+  }
+}
+
 // Dynamically play Synthesized Web Audio API Chime (Ding-Dong)
 function playDingDongChime() {
   try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    const ctx = getActiveAudioCtx();
+    if (!ctx) return;
 
     const osc1 = ctx.createOscillator();
     const osc2 = ctx.createOscillator();
@@ -82,14 +97,12 @@ function playDingDongChime() {
 // Dynamically play Synthesized Attention Bell (Extremely loud, long, and high-impact majestic chime)
 function playAttentionBell() {
   try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    const ctx = getActiveAudioCtx();
+    if (!ctx) return;
 
     const now = ctx.currentTime;
 
     // --- STAGE 1: The Rising High-Impact Alarm Hook (0.0s to 0.4s) ---
-    // A brilliant, energetic pitch sweep that instantly slices through loud background noise
     const sweepOsc = ctx.createOscillator();
     const sweepGain = ctx.createGain();
     sweepOsc.type = 'triangle';
@@ -106,25 +119,18 @@ function playAttentionBell() {
     sweepOsc.start(now);
     sweepOsc.stop(now + 0.45);
 
-
     // --- STAGE 2: The Epic Majestic Gong & Brass Chord (Impact starts at 0.3s) ---
-    // Low, powerful bass frequencies (Gong foundation) + thick, detuned brass major chords that decay beautifully
     const impactTime = now + 0.28;
 
-    // Frequencies of a grand, beautiful F-Major 9th chord structure for majestic impact
-    // [Low Gong Root, Low Fifth, Chord Third, Chord Fifth, Chord Octave, Bright High Ninth]
     const chordFrequencies = [110.00, 164.81, 261.63, 349.23, 440.00, 523.25, 698.46, 1174.66];
 
     chordFrequencies.forEach((freq, chordIdx) => {
-      // Stagger notes slightly (15ms delay per voice) to create a ultra-wide, grand orchestral entrance
       const noteStartTime = impactTime + (chordIdx * 0.015);
       
-      // We use two detuned oscillators per note to create a massive, rich, analog-synth chorus effect
       const oscA = ctx.createOscillator();
       const oscB = ctx.createOscillator();
       const voiceGain = ctx.createGain();
 
-      // Lower registers get warm triangles, higher registers get rich saws/triangles
       if (freq < 200) {
         oscA.type = 'sine';
         oscB.type = 'triangle';
@@ -133,17 +139,13 @@ function playAttentionBell() {
         oscB.type = 'sawtooth';
       }
 
-      // Detune the oscillators slightly to create natural richness and massive acoustic volume (chorus effect)
       oscA.frequency.setValueAtTime(freq - 3, noteStartTime);
       oscB.frequency.setValueAtTime(freq + 3, noteStartTime);
 
-      // Distribute volume: lower tones get solid grounding, high tones shine brightly
       const baseVolume = freq < 200 ? 0.35 : 0.22;
       
       voiceGain.gain.setValueAtTime(0.001, noteStartTime);
-      // Fast attack to high peak volume
       voiceGain.gain.linearRampToValueAtTime(baseVolume, noteStartTime + 0.08);
-      // Extremely long, beautiful, majestic decay of 2.5 seconds
       voiceGain.gain.exponentialRampToValueAtTime(0.001, noteStartTime + 2.5);
 
       oscA.connect(voiceGain);
@@ -165,12 +167,10 @@ function playAttentionBell() {
 // Dynamically play Synthesized Warning Alarm Sound (Sharp, urgent dual-tone siren blast)
 function playWarningAlarmSound() {
   try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    const ctx = getActiveAudioCtx();
+    if (!ctx) return;
     const now = ctx.currentTime;
 
-    // 5 rapid high-intensity alarm bursts (sawtooth + square dual oscillator)
     const bursts = [0, 0.18, 0.36, 0.54, 0.72];
     bursts.forEach((timeOffset, idx) => {
       const startTime = now + timeOffset;
@@ -178,15 +178,13 @@ function playWarningAlarmSound() {
       const osc2 = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc1.type = 'sawtooth'; // Sharp piercing wave
-      osc2.type = 'square';   // Buzzing warning wave
+      osc1.type = 'sawtooth';
+      osc2.type = 'square';
 
-      // Alternating high siren frequencies (1244Hz / 880Hz)
       const freq = idx % 2 === 0 ? 1244.51 : 880.00;
       osc1.frequency.setValueAtTime(freq, startTime);
       osc2.frequency.setValueAtTime(freq * 0.5, startTime);
 
-      // Rapid siren pitch ramp for urgent alarm effect
       osc1.frequency.exponentialRampToValueAtTime(freq * 1.25, startTime + 0.14);
 
       gain.gain.setValueAtTime(0.4, startTime);
@@ -209,12 +207,10 @@ function playWarningAlarmSound() {
 // Dynamically play Synthesized Cleanup & Robot Retrieval Chime (Bright 4-tone station announcement chime)
 function playCleanupNoticeSound() {
   try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    const ctx = getActiveAudioCtx();
+    if (!ctx) return;
     const now = ctx.currentTime;
 
-    // Pleasant 4-note ascending/descending melody chime (C5, E5, G5, C6, G5)
     const notes = [523.25, 659.25, 783.99, 1046.50, 783.99];
     notes.forEach((freq, idx) => {
       const startTime = now + idx * 0.18;
@@ -226,7 +222,7 @@ function playCleanupNoticeSound() {
       osc2.type = 'triangle';
 
       osc1.frequency.setValueAtTime(freq, startTime);
-      osc2.frequency.setValueAtTime(freq * 1.5, startTime); // Harmonic overtone
+      osc2.frequency.setValueAtTime(freq * 1.5, startTime);
 
       gain.gain.setValueAtTime(0.35, startTime);
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.6);
@@ -377,27 +373,29 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
     }
   };
 
+  const handleAttentionBellClick = () => {
+    if (isSoundEnabled) {
+      playAttentionBell();
+    }
+    if (isVoiceEnabled) {
+      speakKorean("주목해 주시기 바랍니다. 안내 방송에 귀 기울여 주세요.");
+    }
+    setDirectCallToast('🔔 전체 대기열 주목 경보음(Bell)을 울렸습니다!');
+  };
+
   const handleUrgeSpeedyAction = () => {
     if (isSoundEnabled) {
       playWarningAlarmSound();
     }
 
     if (isVoiceEnabled) {
-      setTimeout(() => {
-        if (!window.speechSynthesis) return;
-        window.speechSynthesis.cancel();
+      const message = currentCalled
+        ? `경고 및 긴급 안내합니다! 현재 호명된 ${currentCalled.name} 팀! 연습 시간 지연으로 뒤에서 대기 중인 다른 팀들의 일정이 크게 밀리고 있습니다. 지체하지 말고 즉시 경기장에 입장하여 신속하게 연습과 미션을 마치고 퇴장해 주시기 바랍니다! 지금 즉시 신속히 진행해 주세요!`
+        : `경고 및 긴급 안내합니다! 대기 중인 연습자가 많아 전체 일정 지연이 발생하고 있습니다! 현재 경기장에서 연습 중인 팀은 지체 없이 신속하게 마무리를 진행해 주시고, 호명된 다음 팀은 즉시 경기장으로 들어와 주시기 바랍니다!`;
 
-        const message = currentCalled
-          ? `경고 및 긴급 안내합니다! 현재 호명된 ${currentCalled.name} 팀! 연습 시간 지연으로 뒤에서 대기 중인 다른 팀들의 일정이 크게 밀리고 있습니다. 지체하지 말고 즉시 경기장에 입장하여 신속하게 연습과 미션을 마치고 퇴장해 주시기 바랍니다! 지금 즉시 신속히 진행해 주세요!`
-          : `경고 및 긴급 안내합니다! 대기 중인 연습자가 많아 전체 일정 지연이 발생하고 있습니다! 현재 경기장에서 연습 중인 팀은 지체 없이 신속하게 마무리를 진행해 주시고, 호명된 다음 팀은 즉시 경기장으로 들어와 주시기 바랍니다!`;
-
-        const utterance = new SpeechSynthesisUtterance(message);
-        utterance.lang = 'ko-KR';
-        utterance.rate = 1.08; // Energetic, rapid pace
-        utterance.pitch = 1.15; // Higher urgent pitch
-        window.speechSynthesis.speak(utterance);
-      }, 500);
+      speakKorean(message);
     }
+    setDirectCallToast('🚨 신속 진행 재촉 경고 방송을 송출했습니다!');
   };
 
   const handleCleanupNotice = () => {
@@ -406,21 +404,13 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
     }
 
     if (isVoiceEnabled) {
-      setTimeout(() => {
-        if (!window.speechSynthesis) return;
-        window.speechSynthesis.cancel();
+      const message = currentCalled
+        ? `안내 말씀 드립니다! 연습이 완료된 ${currentCalled.name} 팀은 경기장의 로봇을 차질 없이 회수해 가시고, 사용하신 경기장 기물과 미션 오브젝트를 원래 위치로 깔끔하게 정리정돈해 주시기 바랍니다!`
+        : `안내 말씀 드립니다! 연습을 마친 모든 참가자는 경기장의 로봇을 빠짐없이 회수해 가시고, 사용하신 경기장 기물과 미션 오브젝트를 원래 위치로 깨끗하게 정리정돈해 주시기 바랍니다!`;
 
-        const message = currentCalled
-          ? `안내 말씀 드립니다! 연습이 완료된 ${currentCalled.name} 팀은 경기장의 로봇을 차질 없이 회수해 가시고, 사용하신 경기장 기물과 미션 오브젝트를 원래 위치로 깔끔하게 정리정돈해 주시기 바랍니다!`
-          : `안내 말씀 드립니다! 연습을 마친 모든 참가자는 경기장의 로봇을 빠짐없이 회수해 가시고, 사용하신 경기장 기물과 미션 오브젝트를 원래 위치로 깨끗하게 정리정돈해 주시기 바랍니다!`;
-
-        const utterance = new SpeechSynthesisUtterance(message);
-        utterance.lang = 'ko-KR';
-        utterance.rate = 0.95;
-        utterance.pitch = 1.05;
-        window.speechSynthesis.speak(utterance);
-      }, 500);
+      speakKorean(message);
     }
+    setDirectCallToast('🧹 로봇 회수 및 기물 정리정돈 안내 방송을 송출했습니다!');
   };
 
   const handleCompleteCurrent = async () => {
@@ -489,8 +479,8 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
           </button>
           <div className="w-px h-5 bg-slate-700 mx-0.5" />
           <button
-            onClick={playAttentionBell}
-            className="px-3 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-amber-500/10"
+            onClick={handleAttentionBellClick}
+            className="px-3 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-amber-500/10 cursor-pointer"
             title="전체 대기열 주목 벨 울리기"
           >
             <Bell className="w-4 h-4 text-white animate-bounce" />
@@ -498,7 +488,7 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
           </button>
           <button
             onClick={handleUrgeSpeedyAction}
-            className="px-3 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-rose-600/20"
+            className="px-3 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-rose-600/20 cursor-pointer"
             title="신속 진행 강력 재촉 경고 방송"
           >
             <Siren className="w-4 h-4 text-amber-300 animate-pulse" />
@@ -506,7 +496,7 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
           </button>
           <button
             onClick={handleCleanupNotice}
-            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/20"
+            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
             title="연습 종료 후 로봇 회수 및 기물 정리 안내 방송"
           >
             <PackageCheck className="w-4 h-4 text-indigo-200" />
@@ -575,70 +565,80 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
               )}
             </AnimatePresence>
 
-            {/* Calling Action Tray for active team */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-wrap gap-3 items-center justify-between">
-              <div className="text-xs text-slate-500 font-medium">
-                {currentCalled ? (
-                  <>
-                    호출 시각:{' '}
-                    <strong className="text-slate-800 font-semibold">
-                      {new Date(currentCalled.calledAt || Date.now()).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </strong>
-                  </>
-                ) : (
-                  '연습 주행 및 미션을 관리하는 구역'
-                )}
+            {/* Calling Action Tray for arena & broadcast controls */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                <div>
+                  {currentCalled ? (
+                    <>
+                      호출 시각:{' '}
+                      <strong className="text-slate-800 font-semibold">
+                        {new Date(currentCalled.calledAt || Date.now()).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </strong>
+                    </>
+                  ) : (
+                    '실시간 긴급 방송 및 경기장 전체 알림 제어'
+                  )}
+                </div>
+                <div className="text-[11px] font-bold text-slate-400">
+                  {currentCalled ? `현재 팀: ${currentCalled.name}` : '경기장 대기 모드'}
+                </div>
               </div>
 
-              {currentCalled && (
-                <div className="flex gap-2 w-full sm:flex-wrap md:flex-nowrap">
-                  <button
-                    onClick={handleUrgeSpeedyAction}
-                    className="flex-1 sm:flex-none px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 transition shadow-sm"
-                    title="현재 팀 신속 진행 강력 경고 재촉"
-                  >
-                    <Siren className="w-4 h-4 text-amber-300 animate-pulse" />
-                    신속 재촉 🚨
-                  </button>
-                  <button
-                    onClick={handleCleanupNotice}
-                    className="flex-1 sm:flex-none px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 transition shadow-sm"
-                    title="로봇 회수 및 경기장 기물 정리정돈 안내"
-                  >
-                    <PackageCheck className="w-4 h-4 text-indigo-200" />
-                    로봇/기물 정리 🧹
-                  </button>
-                  <button
-                    onClick={playAttentionBell}
-                    className="flex-1 sm:flex-none px-3.5 py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-95 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 transition shadow-sm"
-                    title="전체를 주목시키는 경보음 울리기"
-                  >
-                    <Bell className="w-4 h-4 text-white animate-bounce" />
-                    주목 벨
-                  </button>
-                  <button
-                    onClick={handleRecall}
-                    className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-xl text-xs font-bold text-slate-800 border border-slate-200 flex items-center justify-center gap-1.5 transition shadow-sm"
-                  >
-                    <Bell className="w-4 h-4 text-amber-500" />
-                    재호출 (Recall)
-                  </button>
-                  <button
-                    onClick={handleSkipCurrent}
-                    className="flex-1 sm:flex-none px-4 py-2.5 bg-rose-50 hover:bg-rose-100 active:scale-95 rounded-xl text-xs font-bold text-rose-700 border border-rose-200 flex items-center justify-center gap-1.5 transition shadow-sm"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    부재/스킵
-                  </button>
-                  <button
-                    onClick={handleCompleteCurrent}
-                    className="flex-1 sm:flex-none px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 shadow-md shadow-emerald-100 transition"
-                  >
-                    <Check className="w-4 h-4" />
-                    연습 완료
-                  </button>
-                </div>
-              )}
+              <div className="flex flex-wrap gap-2 w-full">
+                {/* Always active broadcast buttons */}
+                <button
+                  onClick={handleAttentionBellClick}
+                  className="flex-1 min-w-[100px] px-3.5 py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-95 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
+                  title="전체를 주목시키는 경보음 울리기"
+                >
+                  <Bell className="w-4 h-4 text-white animate-bounce" />
+                  전체 주목 벨 🔔
+                </button>
+                <button
+                  onClick={handleUrgeSpeedyAction}
+                  className="flex-1 min-w-[100px] px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
+                  title="신속 진행 강력 경고 재촉"
+                >
+                  <Siren className="w-4 h-4 text-amber-300 animate-pulse" />
+                  신속 재촉 🚨
+                </button>
+                <button
+                  onClick={handleCleanupNotice}
+                  className="flex-1 min-w-[110px] px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
+                  title="로봇 회수 및 경기장 기물 정리정돈 안내"
+                >
+                  <PackageCheck className="w-4 h-4 text-indigo-200" />
+                  로봇/기물 정리 🧹
+                </button>
+
+                {/* Called team specific actions */}
+                {currentCalled && (
+                  <>
+                    <button
+                      onClick={handleRecall}
+                      className="flex-1 min-w-[90px] px-3.5 py-2.5 bg-slate-200 hover:bg-slate-300 active:scale-95 rounded-xl text-xs font-bold text-slate-800 border border-slate-300 flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
+                    >
+                      <Bell className="w-4 h-4 text-amber-600" />
+                      재호출
+                    </button>
+                    <button
+                      onClick={handleSkipCurrent}
+                      className="flex-1 min-w-[90px] px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 active:scale-95 rounded-xl text-xs font-bold text-rose-700 border border-rose-200 flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      부재/스킵
+                    </button>
+                    <button
+                      onClick={handleCompleteCurrent}
+                      className="flex-1 min-w-[100px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 shadow-md shadow-emerald-100 transition cursor-pointer"
+                    >
+                      <Check className="w-4 h-4" />
+                      연습 완료
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
  
