@@ -20,6 +20,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem('wro_arena_auth') === 'true' || localStorage.getItem('wro_arena_auth') === 'true';
   });
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
 
@@ -34,10 +35,23 @@ export default function App() {
     if (passwordInput.trim() === REQUIRED_PASSWORD) {
       setIsAuthenticated(true);
       setPasswordError(false);
+      setShowPasswordModal(false);
+      setPasswordInput('');
       sessionStorage.setItem('wro_arena_auth', 'true');
       localStorage.setItem('wro_arena_auth', 'true');
+      setViewMode('pc');
     } else {
       setPasswordError(true);
+    }
+  };
+
+  const handleSelectPcMode = () => {
+    if (isAuthenticated) {
+      setViewMode('pc');
+    } else {
+      setShowPasswordModal(true);
+      setPasswordError(false);
+      setPasswordInput('');
     }
   };
 
@@ -47,6 +61,8 @@ export default function App() {
     localStorage.removeItem('wro_arena_auth');
     setPasswordInput('');
     setPasswordError(false);
+    setShowPasswordModal(false);
+    setViewMode('select');
   };
 
   // Real-time updates subscription using Firestore onSnapshot
@@ -120,85 +136,87 @@ export default function App() {
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        {/* Background ambient lighting */}
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          className="max-w-md w-full bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl backdrop-blur-xl relative z-10 space-y-6 text-white"
-        >
-          <div className="flex flex-col items-center text-center space-y-3">
-            <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg shadow-blue-500/20 text-white">
-              <Lock className="w-8 h-8" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-black tracking-tight text-white">
-                WRO Arena 로그인
-              </h2>
-              <p className="text-xs text-slate-400 mt-1 font-medium">
-                시스템에 접근하려면 비밀번호를 입력해주세요.
-              </p>
-            </div>
-          </div>
-
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <KeyRound className="w-3.5 h-3.5 text-blue-400" />
-                비밀번호 (Password)
-              </label>
-              <input
-                type="password"
-                value={passwordInput}
-                onChange={(e) => {
-                  setPasswordInput(e.target.value);
-                  if (passwordError) setPasswordError(false);
-                }}
-                placeholder="비밀번호를 입력하세요..."
-                autoFocus
-                className={`w-full px-4 py-3 bg-slate-950 border rounded-2xl text-sm font-semibold text-white placeholder-slate-500 focus:outline-none transition ${
-                  passwordError
-                    ? 'border-rose-500 focus:ring-2 focus:ring-rose-500/30'
-                    : 'border-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
-                }`}
-              />
-              {passwordError && (
-                <motion.p
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-xs font-bold text-rose-400 flex items-center gap-1 pt-1"
-                >
-                  <ShieldAlert className="w-3.5 h-3.5" />
-                  비밀번호가 올바르지 않습니다. 다시 확인해 주세요.
-                </motion.p>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-black rounded-2xl text-sm transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              접속 승인
-            </button>
-          </form>
-
-          <div className="pt-2 text-center border-t border-slate-800/80">
-            <p className="text-[11px] font-medium text-slate-500">
-              K.F.C. Robot Arena Management System
-            </p>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 font-sans">
+      {/* Password Modal for PC Caller Screen Access */}
+      <AnimatePresence>
+        {showPasswordModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl relative z-10 space-y-6 text-white"
+            >
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg shadow-blue-500/20 text-white">
+                  <Lock className="w-8 h-8" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tight text-white">
+                    호출 스크린 접속 인증
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1 font-medium">
+                    [PC/TV] 관리자 및 호출 스크린에 접근하려면 비밀번호를 입력해주세요.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-blue-400" />
+                    비밀번호 (Password)
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => {
+                      setPasswordInput(e.target.value);
+                      if (passwordError) setPasswordError(false);
+                    }}
+                    placeholder="비밀번호를 입력하세요..."
+                    autoFocus
+                    className={`w-full px-4 py-3 bg-slate-950 border rounded-2xl text-sm font-semibold text-white placeholder-slate-500 focus:outline-none transition ${
+                      passwordError
+                        ? 'border-rose-500 focus:ring-2 focus:ring-rose-500/30'
+                        : 'border-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                    }`}
+                  />
+                  {passwordError && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-xs font-bold text-rose-400 flex items-center gap-1 pt-1"
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      비밀번호가 올바르지 않습니다. 다시 확인해 주세요.
+                    </motion.p>
+                  )}
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordModal(false)}
+                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-2xl text-sm transition cursor-pointer"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl text-sm transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    접속 승인
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence mode="wait">
         {/* VIEW 1: Role Selection Portal Splash Screen */}
         {viewMode === 'select' && (
@@ -276,7 +294,7 @@ export default function App() {
 
                 {/* Mode Option 2: PC Display Dashboard */}
                 <button
-                  onClick={() => setViewMode('pc')}
+                  onClick={handleSelectPcMode}
                   className="bg-slate-800/60 hover:bg-slate-800 border-2 border-slate-700/60 hover:border-blue-500 rounded-3xl p-6 md:p-8 flex flex-col justify-between text-left transition-all duration-300 group hover:shadow-2xl hover:shadow-blue-950/50 hover:-translate-y-1"
                 >
                   <div className="space-y-4">
