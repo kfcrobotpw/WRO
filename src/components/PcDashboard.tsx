@@ -25,6 +25,7 @@ import {
   UserCheck,
   Search,
   Plus,
+  ClipboardList,
 } from 'lucide-react';
 import { QueueItem, DEFAULT_PRACTITIONERS } from '../types';
 
@@ -422,6 +423,18 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
     setDirectCallToast('🧹 로봇 회수 및 기물 정리정돈 안내 방송을 송출했습니다!');
   };
 
+  const handleRegistrationRequiredNotice = () => {
+    if (isSoundEnabled) {
+      playDingDongChime();
+    }
+
+    if (isVoiceEnabled) {
+      const message = `안내 말씀 드립니다! 경기장 이용은 반드시 대기 등록 후 순서에 맞춰 사용해 주시기 바랍니다! 대기 등록 없이 경기장에 입장하는 일이 없도록 참가자 여러분의 협조 부탁드립니다!`;
+      speakKorean(message);
+    }
+    setDirectCallToast('📝 대기 등록 후 경기장 이용 안내 방송을 송출했습니다!');
+  };
+
   const handleCompleteCurrent = async () => {
     if (currentCalled) {
       await onUpdateStatus(currentCalled.id, 'completed');
@@ -510,6 +523,14 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
           >
             <PackageCheck className="w-4 h-4 text-indigo-200" />
             로봇/기물 정리 🧹
+          </button>
+          <button
+            onClick={handleRegistrationRequiredNotice}
+            className="px-3 py-2 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-sky-600/20 cursor-pointer"
+            title="대기 등록 후 경기장 이용 안내 방송"
+          >
+            <ClipboardList className="w-4 h-4 text-sky-200" />
+            대기 등록 안내 📝
           </button>
         </div>
       </div>
@@ -619,6 +640,14 @@ export default function PcDashboard({ queue, onBack, onUpdateStatus, onRegister,
                 >
                   <PackageCheck className="w-4 h-4 text-indigo-200" />
                   로봇/기물 정리 🧹
+                </button>
+                <button
+                  onClick={handleRegistrationRequiredNotice}
+                  className="flex-1 min-w-[110px] px-3.5 py-2.5 bg-sky-600 hover:bg-sky-700 active:scale-95 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
+                  title="대기 등록 후 경기장 이용 안내 방송"
+                >
+                  <ClipboardList className="w-4 h-4 text-sky-200" />
+                  대기 등록 안내 📝
                 </button>
 
                 {/* Called team specific actions */}
