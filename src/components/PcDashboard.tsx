@@ -241,13 +241,22 @@ function playCleanupNoticeSound() {
   }
 }
 
+// Helper to format team names into accurate Korean pronunciations for TTS
+function formatPronunciation(text: string): string {
+  return text
+    .replace(/K\.?F\.?C\.?\s*Legend/gi, '케이에프씨 레전드')
+    .replace(/K\.?F\.?C\.?\s*F=ma/gi, '케이에프씨 에프는엠에이')
+    .replace(/K\.?F\.?C\.?\s*CodeChaser/gi, '케이에프씨 코드체이써');
+}
+
 // Text-to-Speech (TTS) Voice Call Function
 function speakKorean(text: string) {
   if (!window.speechSynthesis) return;
   // Cancel current speech to prevent queuing lag
   window.speechSynthesis.cancel();
 
-  const utterance = new SpeechSynthesisUtterance(text);
+  const formattedText = formatPronunciation(text);
+  const utterance = new SpeechSynthesisUtterance(formattedText);
   utterance.lang = 'ko-KR';
   utterance.rate = 0.95; // Slightly slower for crisp robotics room echoes
   utterance.pitch = 1.0;

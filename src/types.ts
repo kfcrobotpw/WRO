@@ -25,4 +25,7 @@ export const DEFAULT_PRACTITIONERS = [
   '김규민',
   '김지온',
   '송민규',
+  'K.F.C. Legend',
+  'K.F.C. F=ma',
+  'K.F.C. CodeChaser',
 ];
