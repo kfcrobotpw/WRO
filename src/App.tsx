@@ -17,9 +17,7 @@ import {
 const REQUIRED_PASSWORD = 'helloworldkfc@1234';
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return sessionStorage.getItem('wro_arena_auth') === 'true' || localStorage.getItem('wro_arena_auth') === 'true';
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
@@ -37,8 +35,6 @@ export default function App() {
       setPasswordError(false);
       setShowPasswordModal(false);
       setPasswordInput('');
-      sessionStorage.setItem('wro_arena_auth', 'true');
-      localStorage.setItem('wro_arena_auth', 'true');
       setViewMode('pc');
     } else {
       setPasswordError(true);
@@ -57,8 +53,6 @@ export default function App() {
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    sessionStorage.removeItem('wro_arena_auth');
-    localStorage.removeItem('wro_arena_auth');
     setPasswordInput('');
     setPasswordError(false);
     setShowPasswordModal(false);
