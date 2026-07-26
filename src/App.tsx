@@ -14,7 +14,7 @@ import {
   clearPenaltyCount
 } from './lib/firebase';
 
-const REQUIRED_PASSWORD = 'kfcrobotpw@1234';
+const REQUIRED_PASSWORD = 'helloworldkfc@1234';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
